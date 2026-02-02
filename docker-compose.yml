@@ -1,0 +1,28 @@
+services:
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: mqtt
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    restart: unless-stopped
+
+  opencv:
+    build: ./opencv
+    container_name: opencv
+    depends_on:
+      - mqtt
+    environment:
+      ESP32_IP: "172.16.8.42"
+      MJPEG_URL: "http://172.16.8.42:81"
+      MQTT_BROKER: "mqtt"
+      MQTT_PORT: "1883"
+      TOL: "20"
+      STEP: "2"
+      TOPIC_PAN: "esp32cam/cmd/pan"
+      TOPIC_TILT: "esp32cam/cmd/tilt"
+      TOPIC_MODE: "esp32cam/cmd/mode"
+    restart: unless-stopped

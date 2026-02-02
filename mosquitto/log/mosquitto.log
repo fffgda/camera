@@ -1,0 +1,7 @@
+1770042947: mosquitto version 2.0.22 starting
+1770042947: Config loaded from /mosquitto/config/mosquitto.conf.
+1770042947: Opening ipv4 listen socket on port 1883.
+1770042947: Opening ipv6 listen socket on port 1883.
+1770042947: mosquitto version 2.0.22 running
+1770043123: mosquitto version 2.0.22 terminating
+1770043123: Saving in-memory database to /mosquitto/data/mosquitto.db.
