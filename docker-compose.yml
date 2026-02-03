@@ -16,8 +16,8 @@ services:
     depends_on:
       - mqtt
     environment:
-      ESP32_IP: "172.16.8.42"
-      MJPEG_URL: "http://172.16.8.42:81"
+      ESP32_IP: "172.16.8.53"
+      MJPEG_URL: "http://172.16.8.53:81/stream"
       MQTT_BROKER: "mqtt"
       MQTT_PORT: "1883"
       TOL: "20"
@@ -26,3 +26,21 @@ services:
       TOPIC_TILT: "esp32cam/cmd/tilt"
       TOPIC_MODE: "esp32cam/cmd/mode"
     restart: unless-stopped
+  web:
+    build: ./web
+    container_name: web
+    depends_on:
+      - mqtt
+    environment:
+      MQTT_BROKER: "mqtt"
+      MQTT_PORT: "1883"
+      TOPIC_PAN: "esp32cam/cmd/pan"
+      TOPIC_TILT: "esp32cam/cmd/tilt"
+      TOPIC_MODE: "esp32cam/cmd/mode"
+      STEP: "2"
+      PAN_START: "90"
+      TILT_START: "90"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+

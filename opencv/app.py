@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import paho.mqtt.client as mqtt
 
-ESP32_IP = os.getenv("ESP32_IP", "172.16.8.42")
+ESP32_IP = os.getenv("ESP32_IP", "172.16.8.53")
 MJPEG_URL = os.getenv("MJPEG_URL", f"http://{ESP32_IP}:81")
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt")  # IMPORTANT: nom du service docker

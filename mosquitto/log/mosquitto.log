@@ -5,3 +5,208 @@
 1770042947: mosquitto version 2.0.22 running
 1770043123: mosquitto version 2.0.22 terminating
 1770043123: Saving in-memory database to /mosquitto/data/mosquitto.db.
+1770044300: mosquitto version 2.0.22 starting
+1770044300: Config loaded from /mosquitto/config/mosquitto.conf.
+1770044300: Opening ipv4 listen socket on port 1883.
+1770044300: Opening ipv6 listen socket on port 1883.
+1770044300: mosquitto version 2.0.22 running
+1770044301: New connection from 172.18.0.3:42309 on port 1883.
+1770044301: New client connected from 172.18.0.3:42309 as OpenCVClient (p2, c1, k60).
+1770044301: No will message specified.
+1770044301: Sending CONNACK to OpenCVClient (0, 0)
+1770044301: Received SUBSCRIBE from OpenCVClient
+1770044301: 	esp32cam/cmd/mode (QoS 0)
+1770044301: OpenCVClient 0 esp32cam/cmd/mode
+1770044301: Sending SUBACK to OpenCVClient
+1770044320: Client OpenCVClient closed its connection.
+1770044321: mosquitto version 2.0.22 terminating
+1770044321: Saving in-memory database to /mosquitto/data/mosquitto.db.
+1770046320: mosquitto version 2.0.22 starting
+1770046320: Config loaded from /mosquitto/config/mosquitto.conf.
+1770046320: Opening ipv4 listen socket on port 1883.
+1770046320: Opening ipv6 listen socket on port 1883.
+1770046320: mosquitto version 2.0.22 running
+1770046320: New connection from 172.18.0.3:56309 on port 1883.
+1770046320: New client connected from 172.18.0.3:56309 as OpenCVClient (p2, c1, k60).
+1770046320: No will message specified.
+1770046320: Sending CONNACK to OpenCVClient (0, 0)
+1770046320: Received SUBSCRIBE from OpenCVClient
+1770046320: 	esp32cam/cmd/mode (QoS 0)
+1770046320: OpenCVClient 0 esp32cam/cmd/mode
+1770046320: Sending SUBACK to OpenCVClient
+1770046354: Client OpenCVClient closed its connection.
+1770046354: mosquitto version 2.0.22 terminating
+1770046354: Saving in-memory database to /mosquitto/data/mosquitto.db.
+1770046557: mosquitto version 2.0.22 starting
+1770046557: Config loaded from /mosquitto/config/mosquitto.conf.
+1770046557: Opening ipv4 listen socket on port 1883.
+1770046557: Opening ipv6 listen socket on port 1883.
+1770046557: mosquitto version 2.0.22 running
+1770046558: New connection from 172.18.0.3:40117 on port 1883.
+1770046558: New client connected from 172.18.0.3:40117 as OpenCVClient (p2, c1, k60).
+1770046558: No will message specified.
+1770046558: Sending CONNACK to OpenCVClient (0, 0)
+1770046558: Received SUBSCRIBE from OpenCVClient
+1770046558: 	esp32cam/cmd/mode (QoS 0)
+1770046558: OpenCVClient 0 esp32cam/cmd/mode
+1770046558: Sending SUBACK to OpenCVClient
+1770046618: Received PINGREQ from OpenCVClient
+1770046618: Sending PINGRESP to OpenCVClient
+1770046678: Received PINGREQ from OpenCVClient
+1770046678: Sending PINGRESP to OpenCVClient
+1770046738: Received PINGREQ from OpenCVClient
+1770046738: Sending PINGRESP to OpenCVClient
+1770046798: Received PINGREQ from OpenCVClient
+1770046798: Sending PINGRESP to OpenCVClient
+1770046858: Received PINGREQ from OpenCVClient
+1770046858: Sending PINGRESP to OpenCVClient
+1770046918: Received PINGREQ from OpenCVClient
+1770046918: Sending PINGRESP to OpenCVClient
+1770046978: Received PINGREQ from OpenCVClient
+1770046978: Sending PINGRESP to OpenCVClient
+1770047039: Received PINGREQ from OpenCVClient
+1770047039: Sending PINGRESP to OpenCVClient
+1770047099: Received PINGREQ from OpenCVClient
+1770047099: Sending PINGRESP to OpenCVClient
+1770047159: Received PINGREQ from OpenCVClient
+1770047159: Sending PINGRESP to OpenCVClient
+1770047219: Received PINGREQ from OpenCVClient
+1770047219: Sending PINGRESP to OpenCVClient
+1770047279: Received PINGREQ from OpenCVClient
+1770047279: Sending PINGRESP to OpenCVClient
+1770047335: Client OpenCVClient closed its connection.
+1770047335: mosquitto version 2.0.22 terminating
+1770047335: Saving in-memory database to /mosquitto/data/mosquitto.db.
+1770047343: mosquitto version 2.0.22 starting
+1770047343: Config loaded from /mosquitto/config/mosquitto.conf.
+1770047343: Opening ipv4 listen socket on port 1883.
+1770047343: Opening ipv6 listen socket on port 1883.
+1770047343: mosquitto version 2.0.22 running
+1770047344: New connection from 172.18.0.3:53249 on port 1883.
+1770047344: New client connected from 172.18.0.3:53249 as OpenCVClient (p2, c1, k60).
+1770047344: No will message specified.
+1770047344: Sending CONNACK to OpenCVClient (0, 0)
+1770047344: Received SUBSCRIBE from OpenCVClient
+1770047344: 	esp32cam/cmd/mode (QoS 0)
+1770047344: OpenCVClient 0 esp32cam/cmd/mode
+1770047344: Sending SUBACK to OpenCVClient
+1770047353: Client OpenCVClient closed its connection.
+1770047353: mosquitto version 2.0.22 terminating
+1770047353: Saving in-memory database to /mosquitto/data/mosquitto.db.
+1770047418: mosquitto version 2.0.22 starting
+1770047418: Config loaded from /mosquitto/config/mosquitto.conf.
+1770047418: Opening ipv4 listen socket on port 1883.
+1770047418: Opening ipv6 listen socket on port 1883.
+1770047418: mosquitto version 2.0.22 running
+1770047419: New connection from 172.18.0.3:56889 on port 1883.
+1770047419: New client connected from 172.18.0.3:56889 as OpenCVClient (p2, c1, k60).
+1770047419: No will message specified.
+1770047419: Sending CONNACK to OpenCVClient (0, 0)
+1770047419: Received SUBSCRIBE from OpenCVClient
+1770047419: 	esp32cam/cmd/mode (QoS 0)
+1770047419: OpenCVClient 0 esp32cam/cmd/mode
+1770047419: Sending SUBACK to OpenCVClient
+1770047422: Client OpenCVClient closed its connection.
+1770047422: mosquitto version 2.0.22 terminating
+1770047422: Saving in-memory database to /mosquitto/data/mosquitto.db.
+1770047686: mosquitto version 2.0.22 starting
+1770047686: Config loaded from /mosquitto/config/mosquitto.conf.
+1770047686: Opening ipv4 listen socket on port 1883.
+1770047686: Opening ipv6 listen socket on port 1883.
+1770047686: mosquitto version 2.0.22 running
+1770047687: New connection from 172.18.0.3:53825 on port 1883.
+1770047687: New client connected from 172.18.0.3:53825 as OpenCVClient (p2, c1, k60).
+1770047687: No will message specified.
+1770047687: Sending CONNACK to OpenCVClient (0, 0)
+1770047687: Received SUBSCRIBE from OpenCVClient
+1770047687: 	esp32cam/cmd/mode (QoS 0)
+1770047687: OpenCVClient 0 esp32cam/cmd/mode
+1770047687: Sending SUBACK to OpenCVClient
+1770047747: Received PINGREQ from OpenCVClient
+1770047747: Sending PINGRESP to OpenCVClient
+1770047807: Received PINGREQ from OpenCVClient
+1770047807: Sending PINGRESP to OpenCVClient
+1770047867: Received PINGREQ from OpenCVClient
+1770047867: Sending PINGRESP to OpenCVClient
+1770047927: Received PINGREQ from OpenCVClient
+1770047927: Sending PINGRESP to OpenCVClient
+1770047987: Received PINGREQ from OpenCVClient
+1770047987: Sending PINGRESP to OpenCVClient
+1770048047: Received PINGREQ from OpenCVClient
+1770048047: Sending PINGRESP to OpenCVClient
+1770051211: Client OpenCVClient closed its connection.
+1770051211: mosquitto version 2.0.22 terminating
+1770051211: Saving in-memory database to /mosquitto/data/mosquitto.db.
+1770101194: mosquitto version 2.0.22 starting
+1770101194: Config loaded from /mosquitto/config/mosquitto.conf.
+1770101194: Opening ipv4 listen socket on port 1883.
+1770101194: Opening ipv6 listen socket on port 1883.
+1770101194: mosquitto version 2.0.22 running
+1770101195: New connection from 172.18.0.3:35023 on port 1883.
+1770101195: New client connected from 172.18.0.3:35023 as OpenCVClient (p2, c1, k60).
+1770101195: No will message specified.
+1770101195: Sending CONNACK to OpenCVClient (0, 0)
+1770101195: Received SUBSCRIBE from OpenCVClient
+1770101195: 	esp32cam/cmd/mode (QoS 0)
+1770101195: OpenCVClient 0 esp32cam/cmd/mode
+1770101195: Sending SUBACK to OpenCVClient
+1770101256: Received PINGREQ from OpenCVClient
+1770101256: Sending PINGRESP to OpenCVClient
+1770101316: Received PINGREQ from OpenCVClient
+1770101316: Sending PINGRESP to OpenCVClient
+1770101376: Received PINGREQ from OpenCVClient
+1770101376: Sending PINGRESP to OpenCVClient
+1770101436: Received PINGREQ from OpenCVClient
+1770101436: Sending PINGRESP to OpenCVClient
+1770101460: Client OpenCVClient closed its connection.
+1770101461: mosquitto version 2.0.22 terminating
+1770101461: Saving in-memory database to /mosquitto/data/mosquitto.db.
+1770101493: mosquitto version 2.0.22 starting
+1770101493: Config loaded from /mosquitto/config/mosquitto.conf.
+1770101493: Opening ipv4 listen socket on port 1883.
+1770101493: Opening ipv6 listen socket on port 1883.
+1770101493: mosquitto version 2.0.22 running
+1770101493: New connection from 172.18.0.3:57843 on port 1883.
+1770101493: New client connected from 172.18.0.3:57843 as OpenCVClient (p2, c1, k60).
+1770101493: No will message specified.
+1770101493: Sending CONNACK to OpenCVClient (0, 0)
+1770101493: Received SUBSCRIBE from OpenCVClient
+1770101493: 	esp32cam/cmd/mode (QoS 0)
+1770101493: OpenCVClient 0 esp32cam/cmd/mode
+1770101493: Sending SUBACK to OpenCVClient
+1770101493: New connection from 172.18.0.4:41499 on port 1883.
+1770101493: New client connected from 172.18.0.4:41499 as WebUIClient (p2, c1, k60).
+1770101493: No will message specified.
+1770101493: Sending CONNACK to WebUIClient (0, 0)
+1770101554: Received PINGREQ from OpenCVClient
+1770101554: Sending PINGRESP to OpenCVClient
+1770101554: Received PINGREQ from WebUIClient
+1770101554: Sending PINGRESP to WebUIClient
+1770101614: Received PINGREQ from OpenCVClient
+1770101614: Sending PINGRESP to OpenCVClient
+1770101614: Received PINGREQ from WebUIClient
+1770101614: Sending PINGRESP to WebUIClient
+1770101674: Received PINGREQ from OpenCVClient
+1770101674: Sending PINGRESP to OpenCVClient
+1770101674: Received PINGREQ from WebUIClient
+1770101674: Sending PINGRESP to WebUIClient
+1770101734: Received PINGREQ from OpenCVClient
+1770101734: Sending PINGRESP to OpenCVClient
+1770101734: Received PINGREQ from WebUIClient
+1770101734: Sending PINGRESP to WebUIClient
+1770101794: Received PINGREQ from OpenCVClient
+1770101794: Sending PINGRESP to OpenCVClient
+1770101794: Received PINGREQ from WebUIClient
+1770101794: Sending PINGRESP to WebUIClient
+1770101818: New connection from 172.18.0.1:57812 on port 1883.
+1770101818: Client <unknown> disconnected due to protocol error.
+1770101819: New connection from 172.18.0.1:57824 on port 1883.
+1770101819: Client <unknown> disconnected due to protocol error.
+1770101854: Received PINGREQ from OpenCVClient
+1770101854: Sending PINGRESP to OpenCVClient
+1770101854: Received PINGREQ from WebUIClient
+1770101854: Sending PINGRESP to WebUIClient
+1770101914: Received PINGREQ from OpenCVClient
+1770101914: Sending PINGRESP to OpenCVClient
+1770101914: Received PINGREQ from WebUIClient
+1770101914: Sending PINGRESP to WebUIClient

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ESP32 Pan/Tilt Control</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Pan/Tilt Control</h1>
+      <p class="sub">Contrôle manuel via MQTT</p>
+    </header>
+
+    <section class="card">
+      <div class="row">
+        <div class="pill" id="modePill">Mode: …</div>
+        <div class="pill" id="posPill">Pan: … | Tilt: …</div>
+      </div>
+
+      <div class="controls">
+        <button class="btn" data-dir="up">▲</button>
+        <div class="mid">
+          <button class="btn" data-dir="left">◀</button>
+          <button class="btn center" id="centerBtn">●</button>
+          <button class="btn" data-dir="right">▶</button>
+        </div>
+        <button class="btn" data-dir="down">▼</button>
+      </div>
+
+      <div class="row">
+        <label class="field">
+          <span>Step</span>
+          <input id="step" type="number" min="1" max="20" value="2" />
+        </label>
+
+        <div class="modes">
+          <button class="small" id="manualBtn">Manuel</button>
+          <button class="small" id="autoBtn">Auto (OpenCV)</button>
+        </div>
+      </div>
+
+      <p class="hint">Astuce : maintiens un bouton appuyé pour bouger en continu.</p>
+    </section>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
