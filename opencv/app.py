@@ -114,45 +114,101 @@ def main():
             while cap is None:
                 cap = open_stream(MJPEG_URL)
                 if cap is None:
-                    print(f"[VIDEO] Reconnexion échouée. Retry 2s...", flush=True)
+                    print(f"[VIDEO] Reconnexion échouée. Nouvelle tentative dans 2s...", flush=True)
                     time.sleep(2)
             continue
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+        frame_width = frame.shape[1]
+        
+        # --- BLOC DE DÉTECTION AVANCÉE (du Code 2) ---
+        all_faces = []
+        
+        # 1. Détection frontale
+        faces_front = face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=4, minSize=(30, 30))
+        for (x, y, w, h) in faces_front:
+            all_faces.append([x, y, x + w, y + h])
 
-        if len(faces) > 0 and mode_auto:
-            x, y, w, h = faces[0]
+        # 2. Détection de profil
+        faces_profile = profile_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=4, minSize=(30, 30))
+        for (x, y, w, h) in faces_profile:
+            all_faces.append([x, y, x + w, y + h])
 
-            fx = x + w / 2.0
-            fy = y + h / 2.0
-            cx = frame.shape[1] / 2.0
-            cy = frame.shape[0] / 2.0
+        # 3. Détection de profil sur image inversée
+        gray_flipped = cv2.flip(gray, 1)
+        faces_profile_flipped = profile_cascade.detectMultiScale(gray_flipped, scaleFactor=1.3, minNeighbors=4, minSize=(30, 30))
+        for (x, y, w, h) in faces_profile_flipped:
+            # On re-convertit les coordonnées pour l'image originale
+            all_faces.append([frame_width - (x + w), y, frame_width - x, y + h])
 
-            error_x = fx - cx
-            error_y = fy - cy
+        # Tri des visages détectés pour un traitement cohérent
+        all_faces = sorted(all_faces, key=operator.itemgetter(0, 1))
+        
+        # --- BLOC DE CONTRÔLE (du Code 1, adapté) ---
+        if len(all_faces) > 0 and mode_auto:
+            # On prend la première face de la liste triée
+            x1, y1, x2, y2 = all_faces[0]
+            w, h = x2 - x1, y2 - y1
+            
+            # Centre du visage
+            face_center_x = x1 + w / 2.0
+            face_center_y = y1 + h / 2.0
+            
+            # Centre de l'image
+            frame_center_x = frame.shape[1] / 2.0
+            frame_center_y = frame.shape[0] / 2.0
+
+            # Calcul de l'erreur
+            error_x = face_center_x - frame_center_x
+            error_y = face_center_y - frame_center_y
 
             moved = False
-
+            # Ajustement du PAN (horizontal)
             if abs(error_x) > TOL:
-                # visage à droite => erreur positive => on ajuste pan
                 current_pan += (-STEP if error_x > 0 else STEP)
                 moved = True
 
+            # Ajustement du TILT (vertical)
             if abs(error_y) > TOL:
-                # visage en bas => erreur positive => on ajuste tilt
                 current_tilt += (-STEP if error_y > 0 else STEP)
                 moved = True
 
             current_pan = clamp(current_pan, MIN_ANGLE, MAX_ANGLE)
             current_tilt = clamp(current_tilt, MIN_ANGLE, MAX_ANGLE)
 
+            # Publication des commandes MQTT si un mouvement est nécessaire
             now = time.time()
             if moved and (now - last_publish) > publish_interval:
-                client.publish(TOPIC_PAN, str(current_pan))
-                client.publish(TOPIC_TILT, str(current_tilt))
+                client.publish(TOPIC_PAN, str(int(current_pan)))
+                client.publish(TOPIC_TILT, str(int(current_tilt)))
                 last_publish = now
                 print(f"[CTRL] pan={current_pan} tilt={current_tilt} err=({error_x:.1f},{error_y:.1f})", flush=True)
+
+        # --- BLOC D'AFFICHAGE (du Code 2) ---
+        # Dessine les rectangles autour de tous les visages détectés
+        for (x, y, x2, y2) in all_faces:
+             cv2.rectangle(frame, (x, y), (x2, y2), (0, 255, 0), 2)
+        
+        # Affiche les FPS
+        fps = cv2.getTickFrequency() / (cv2.getTickCount() - tickmark)
+        cv2.putText(frame, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+        
+        # Affiche le mode actuel
+        mode_text = f"Mode: {'AUTO' if mode_auto else 'MANUEL'}"
+        cv2.putText(frame, mode_text, (10, 60), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255) if mode_auto else (0, 255, 255), 2)
+        
+        # Montre l'image
+        cv2.imshow('Face Tracking', frame)
+
+        # Quitter avec la touche 'q'
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    # Nettoyage
+    print("[SYSTEM] Arrêt du programme.", flush=True)
+    cap.release()
+    cv2.destroyAllWindows()
+    client.loop_stop()
 
 if __name__ == "__main__":
     main()
