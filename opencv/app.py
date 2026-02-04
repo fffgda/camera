@@ -5,7 +5,6 @@ import numpy as np
 import paho.mqtt.client as mqtt
 import operator
 
-# --- CONFIGURATION (du Code 1) ---
 # Adresses et URL
 ESP32_IP = os.getenv("ESP32_IP", "192.168.1.49") # J'ai mis l'IP de votre exemple
 MJPEG_URL = os.getenv("MJPEG_URL", f"http://{ESP32_IP}:81/stream")
@@ -44,7 +43,7 @@ mode_auto = True
 current_pan = 90
 current_tilt = 90
 
-# --- FONCTIONS MQTT (du Code 1) ---
+# --- FONCTIONS MQTT ---
 def on_message(client, userdata, msg):
     """Callback pour la réception des messages MQTT."""
     global mode_auto
@@ -121,7 +120,7 @@ def main():
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         frame_width = frame.shape[1]
         
-        # --- BLOC DE DÉTECTION AVANCÉE (du Code 2) ---
+        # --- BLOC DE DÉTECTION AVANCÉE ---
         all_faces = []
         
         # 1. Détection frontale
@@ -144,7 +143,7 @@ def main():
         # Tri des visages détectés pour un traitement cohérent
         all_faces = sorted(all_faces, key=operator.itemgetter(0, 1))
         
-        # --- BLOC DE CONTRÔLE (du Code 1, adapté) ---
+        # --- BLOC DE CONTRÔLE ---
         if len(all_faces) > 0 and mode_auto:
             # On prend la première face de la liste triée
             x1, y1, x2, y2 = all_faces[0]
@@ -184,7 +183,7 @@ def main():
                 last_publish = now
                 print(f"[CTRL] pan={current_pan} tilt={current_tilt} err=({error_x:.1f},{error_y:.1f})", flush=True)
 
-        # --- BLOC D'AFFICHAGE (du Code 2) ---
+        # --- BLOC D'AFFICHAGE ---
         # Dessine les rectangles autour de tous les visages détectés
         for (x, y, x2, y2) in all_faces:
              cv2.rectangle(frame, (x, y), (x2, y2), (0, 255, 0), 2)
