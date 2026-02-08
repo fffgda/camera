@@ -1,5 +1,6 @@
 import os
-from flask import Flask, request, jsonify, send_from_directory
+import requests
+from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
 import paho.mqtt.client as mqtt
 
 # Config via variables d'environnement
@@ -9,6 +10,8 @@ MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 TOPIC_PAN = os.getenv("TOPIC_PAN", "esp32cam/cmd/pan")
 TOPIC_TILT = os.getenv("TOPIC_TILT", "esp32cam/cmd/tilt")
 TOPIC_MODE = os.getenv("TOPIC_MODE", "esp32cam/cmd/mode")
+
+OPENCV_STREAM_URL = os.getenv("OPENCV_STREAM_URL", "http://opencv:5001/stream")
 
 STEP = int(os.getenv("STEP", "2"))   # pas servo
 PAN_MIN, PAN_MAX = 0, 180
@@ -34,6 +37,20 @@ app = Flask(__name__, static_folder="static")
 @app.get("/")
 def index():
     return send_from_directory("static", "index.html")
+
+def proxy_stream():
+    with requests.get(OPENCV_STREAM_URL, stream=True, timeout=10) as res:
+        res.raise_for_status()
+        for chunk in res.iter_content(chunk_size=1024):
+            if chunk:
+                yield chunk
+
+@app.get("/video")
+def video():
+    return Response(
+        stream_with_context(proxy_stream()),
+        mimetype="multipart/x-mixed-replace; boundary=frame",
+    )
 
 @app.get("/api/state")
 def get_state():
