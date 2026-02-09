@@ -1,8 +1,12 @@
 import os
 import time
+import threading
+from typing import Optional
+
 import cv2
 import numpy as np
 import paho.mqtt.client as mqtt
+from flask import Flask, Response
 import operator
 
 # Adresses et URL
@@ -78,9 +82,30 @@ def clamp(v, lo, hi):
     """Limite une valeur dans un intervalle [lo, hi]."""
     return max(lo, min(hi, v))
 
-# --- FONCTION PRINCIPALE (Fusion) ---
-def main():
-    global current_pan, current_tilt
+app = Flask(__name__)
+
+frame_lock = threading.Lock()
+latest_frame: Optional[bytes] = None
+
+
+def generate_stream():
+    while True:
+        with frame_lock:
+            frame = latest_frame
+        if frame is None:
+            time.sleep(0.05)
+            continue
+        yield (b"--frame\r\n"
+               b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n")
+
+
+@app.get("/stream")
+def stream():
+    return Response(generate_stream(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+def process_loop():
+    global current_pan, current_tilt, latest_frame
 
     client = mqtt_connect()
     if client is None:
@@ -119,40 +144,46 @@ def main():
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         frame_width = frame.shape[1]
-        
+
         # --- BLOC DE DÉTECTION AVANCÉE ---
         all_faces = []
-        
+
         # 1. Détection frontale
-        faces_front = face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=4, minSize=(30, 30))
+        faces_front = face_cascade.detectMultiScale(
+            gray, scaleFactor=1.3, minNeighbors=4, minSize=(30, 30)
+        )
         for (x, y, w, h) in faces_front:
             all_faces.append([x, y, x + w, y + h])
 
         # 2. Détection de profil
-        faces_profile = profile_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=4, minSize=(30, 30))
+        faces_profile = profile_cascade.detectMultiScale(
+            gray, scaleFactor=1.3, minNeighbors=4, minSize=(30, 30)
+        )
         for (x, y, w, h) in faces_profile:
             all_faces.append([x, y, x + w, y + h])
 
         # 3. Détection de profil sur image inversée
         gray_flipped = cv2.flip(gray, 1)
-        faces_profile_flipped = profile_cascade.detectMultiScale(gray_flipped, scaleFactor=1.3, minNeighbors=4, minSize=(30, 30))
+        faces_profile_flipped = profile_cascade.detectMultiScale(
+            gray_flipped, scaleFactor=1.3, minNeighbors=4, minSize=(30, 30)
+        )
         for (x, y, w, h) in faces_profile_flipped:
             # On re-convertit les coordonnées pour l'image originale
             all_faces.append([frame_width - (x + w), y, frame_width - x, y + h])
 
         # Tri des visages détectés pour un traitement cohérent
         all_faces = sorted(all_faces, key=operator.itemgetter(0, 1))
-        
+
         # --- BLOC DE CONTRÔLE ---
         if len(all_faces) > 0 and mode_auto:
             # On prend la première face de la liste triée
             x1, y1, x2, y2 = all_faces[0]
             w, h = x2 - x1, y2 - y1
-            
+
             # Centre du visage
             face_center_x = x1 + w / 2.0
             face_center_y = y1 + h / 2.0
-            
+
             # Centre de l'image
             frame_center_x = frame.shape[1] / 2.0
             frame_center_y = frame.shape[0] / 2.0
@@ -181,33 +212,39 @@ def main():
                 client.publish(TOPIC_PAN, str(int(current_pan)))
                 client.publish(TOPIC_TILT, str(int(current_tilt)))
                 last_publish = now
-                print(f"[CTRL] pan={current_pan} tilt={current_tilt} err=({error_x:.1f},{error_y:.1f})", flush=True)
+                print(
+                    f"[CTRL] pan={current_pan} tilt={current_tilt} err=({error_x:.1f},{error_y:.1f})",
+                    flush=True,
+                )
 
         # --- BLOC D'AFFICHAGE ---
         # Dessine les rectangles autour de tous les visages détectés
         for (x, y, x2, y2) in all_faces:
-             cv2.rectangle(frame, (x, y), (x2, y2), (0, 255, 0), 2)
-        
+            cv2.rectangle(frame, (x, y), (x2, y2), (0, 255, 0), 2)
+
         # Affiche les FPS
         fps = cv2.getTickFrequency() / (cv2.getTickCount() - tickmark)
         cv2.putText(frame, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
-        
+
         # Affiche le mode actuel
         mode_text = f"Mode: {'AUTO' if mode_auto else 'MANUEL'}"
-        cv2.putText(frame, mode_text, (10, 60), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255) if mode_auto else (0, 255, 255), 2)
-        
-        # Montre l'image
-        cv2.imshow('Face Tracking', frame)
+        cv2.putText(
+            frame,
+            mode_text,
+            (10, 60),
+            cv2.FONT_HERSHEY_PLAIN,
+            2,
+            (0, 0, 255) if mode_auto else (0, 255, 255),
+            2,
+        )
 
-        # Quitter avec la touche 'q'
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        success, encoded = cv2.imencode(".jpg", frame)
+        if success:
+            with frame_lock:
+                latest_frame = encoded.tobytes()
 
-    # Nettoyage
-    print("[SYSTEM] Arrêt du programme.", flush=True)
-    cap.release()
-    cv2.destroyAllWindows()
-    client.loop_stop()
 
 if __name__ == "__main__":
-    main()
+    worker = threading.Thread(target=process_loop, daemon=True)
+    worker.start()
+    app.run(host="0.0.0.0", port=int(os.getenv("STREAM_PORT", "5001")), threaded=True)
