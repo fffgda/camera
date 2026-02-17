@@ -10,7 +10,7 @@ from flask import Flask, Response
 import operator
 
 # Adresses et URL
-ESP32_IP = os.getenv("ESP32_IP", "192.168.1.49") # J'ai mis l'IP de votre exemple
+ESP32_IP = os.getenv("ESP32_IP", "172.20.10.5") # J'ai mis l'IP de votre exemple
 MJPEG_URL = os.getenv("MJPEG_URL", f"http://{ESP32_IP}:81/stream")
 
 # Configuration MQTT
