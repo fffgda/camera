@@ -6,6 +6,61 @@ const manualBtn = document.getElementById("manualBtn");
 const autoBtn = document.getElementById("autoBtn");
 const centerBtn = document.getElementById("centerBtn");
 
+const cam = document.getElementById("cam");
+const overlay = document.getElementById("overlay");
+const ctx = overlay.getContext("2d");
+
+function resizeCanvasToImage() {
+  // taille affichée
+  const rect = cam.getBoundingClientRect();
+  overlay.width = Math.round(rect.width);
+  overlay.height = Math.round(rect.height);
+}
+
+window.addEventListener("resize", resizeCanvasToImage);
+cam.addEventListener("load", resizeCanvasToImage);
+
+function drawFaces(data) {
+  // data.frame_w / frame_h = taille originale de la frame OpenCV
+  if (!data || !data.frame_w || !data.frame_h) return;
+
+  // Clear
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+  const sx = overlay.width / data.frame_w;
+  const sy = overlay.height / data.frame_h;
+
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "lime";
+  ctx.font = "14px system-ui";
+  ctx.fillStyle = "lime";
+
+  (data.faces || []).forEach((f, i) => {
+    const x = f.x * sx;
+    const y = f.y * sy;
+    const w = f.w * sx;
+    const h = f.h * sy;
+    ctx.strokeRect(x, y, w, h);
+    ctx.fillText(`Face ${i+1}`, x + 6, y - 6);
+  });
+}
+
+async function pollFaces() {
+  try {
+    const res = await fetch("/api/faces");
+    const data = await res.json();
+    drawFaces(data);
+  } catch (e) {
+    // si erreur, efface
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+  } finally {
+    setTimeout(pollFaces, 120); // ~8fps overlay
+  }
+}
+
+resizeCanvasToImage();
+pollFaces();
+
 async function api(path, body) {
   const res = await fetch(path, {
     method: "POST",

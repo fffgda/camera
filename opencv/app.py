@@ -1,25 +1,43 @@
 import os
 import time
+<<<<<<< Updated upstream
 import threading
 from typing import Optional
 
+=======
+import json
+>>>>>>> Stashed changes
 import cv2
 import numpy as np
 import paho.mqtt.client as mqtt
 from flask import Flask, Response
 import operator
 
+<<<<<<< Updated upstream
 # Adresses et URL
 ESP32_IP = os.getenv("ESP32_IP", "192.168.1.49") # J'ai mis l'IP de votre exemple
 MJPEG_URL = os.getenv("MJPEG_URL", f"http://{ESP32_IP}:81/stream")
 
 # Configuration MQTT
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt")  # IMPORTANT: nom du service docker ou IP du broker
+=======
+# =========================
+# CONFIG (ENV)
+# =========================
+STATUS_FACES_TOPIC = os.getenv("STATUS_FACES_TOPIC", "esp32cam/status/faces")
+
+ESP32_IP = os.getenv("ESP32_IP", "172.16.8.53")
+# IMPORTANT : pour ESP32-CAM, le flux est généralement /stream
+MJPEG_URL = os.getenv("MJPEG_URL", f"http://{ESP32_IP}:81/stream")
+
+MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt")  # nom du service docker mosquitto
+>>>>>>> Stashed changes
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 TOPIC_PAN = os.getenv("TOPIC_PAN", "esp32cam/cmd/pan")
 TOPIC_TILT = os.getenv("TOPIC_TILT", "esp32cam/cmd/tilt")
 TOPIC_MODE = os.getenv("TOPIC_MODE", "esp32cam/cmd/mode")
 
+<<<<<<< Updated upstream
 # Paramètres du contrôle des servos
 TOL = int(os.getenv("TOL", "20"))          # Tolérance en pixels avant de bouger
 STEP = int(os.getenv("STEP", "2"))         # Pas de mouvement du servo
@@ -50,6 +68,56 @@ current_tilt = 90
 # --- FONCTIONS MQTT ---
 def on_message(client, userdata, msg):
     """Callback pour la réception des messages MQTT."""
+=======
+# Réglages tracking (servo)
+TOL = int(os.getenv("TOL", "20"))          # zone morte (pixels)
+STEP = int(os.getenv("STEP", "2"))         # pas servo
+MIN_ANGLE = 0
+MAX_ANGLE = 180
+
+# =========================
+# Réglages détection (PLUS PERMISSIF)
+# =========================
+# Ces valeurs sont la raison n°1 de "faces: []" quand la caméra est sombre / 320x240.
+SCALE_FACTOR = float(os.getenv("SCALE_FACTOR", "1.08"))   # 1.05–1.15
+MIN_NEIGHBORS = int(os.getenv("MIN_NEIGHBORS", "3"))      # 3–5
+MIN_SIZE = int(os.getenv("MIN_SIZE", "20"))               # 20–40 (en pixels)
+
+# =========================
+# Publication faces (overlay)
+# =========================
+FACES_MAX = int(os.getenv("FACES_MAX", "5"))              # max faces envoyées
+FACES_FPS = float(os.getenv("FACES_FPS", "8"))            # fréquence d'envoi rectangles
+FACES_INTERVAL = 1.0 / max(1e-6, FACES_FPS)
+
+# =========================
+# Debug / logs
+# =========================
+DEBUG = os.getenv("DEBUG", "1") == "1"
+DEBUG_INTERVAL = float(os.getenv("DEBUG_INTERVAL", "1.0"))  # log toutes les X secondes
+
+# =========================
+# Haar cascade (face detect)
+# =========================
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+)
+if face_cascade.empty():
+    raise RuntimeError("Cascade Haar introuvable dans OpenCV.")
+
+# =========================
+# Etat
+# =========================
+mode_auto = True
+current_pan = int(os.getenv("PAN_START", "90"))
+current_tilt = int(os.getenv("TILT_START", "90"))
+
+# =========================
+# MQTT callbacks
+# =========================
+def on_message(client, userdata, msg):
+    """Réception du mode auto/manual depuis MQTT."""
+>>>>>>> Stashed changes
     global mode_auto
     if msg.topic == TOPIC_MODE:
         m = msg.payload.decode(errors="ignore").strip().lower()
@@ -57,6 +125,7 @@ def on_message(client, userdata, msg):
         print(f"[MQTT] Mode reçu: {m} -> mode_auto={mode_auto}", flush=True)
 
 def mqtt_connect():
+<<<<<<< Updated upstream
     """Initialise et connecte le client MQTT."""
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="OpenCVFaceTracker")
     client.on_message = on_message
@@ -67,17 +136,32 @@ def mqtt_connect():
         return None
     client.subscribe(TOPIC_MODE)
     client.loop_start()
+=======
+    c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="OpenCVClient")
+    c.on_message = on_message
+    c.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
+    c.subscribe(TOPIC_MODE)
+    c.loop_start()
+>>>>>>> Stashed changes
     print(f"[MQTT] Connecté à {MQTT_BROKER}:{MQTT_PORT}", flush=True)
-    return client
+    return c
 
+<<<<<<< Updated upstream
 # --- FONCTIONS UTILITAIRES ---
 def open_stream(url):
     """Ouvre le flux vidéo."""
+=======
+# =========================
+# Video helpers
+# =========================
+def open_stream(url: str):
+>>>>>>> Stashed changes
     cap = cv2.VideoCapture(url)
     if not cap.isOpened():
         return None
     return cap
 
+<<<<<<< Updated upstream
 def clamp(v, lo, hi):
     """Limite une valeur dans un intervalle [lo, hi]."""
     return max(lo, min(hi, v))
@@ -106,13 +190,31 @@ def stream():
 
 def process_loop():
     global current_pan, current_tilt, latest_frame
+=======
+def clamp(v: int, lo: int, hi: int) -> int:
+    return max(lo, min(hi, v))
+
+def mean_brightness(gray: np.ndarray) -> float:
+    # luminosité moyenne (0-255). Si tu es < ~40, la Haar galère souvent.
+    return float(np.mean(gray))
+
+# =========================
+# Main loop
+# =========================
+def main():
+    global current_pan, current_tilt
+>>>>>>> Stashed changes
 
     client = mqtt_connect()
     if client is None:
         print("[SYSTEM] Arrêt du programme en raison de l'échec de la connexion MQTT.", flush=True)
         return
 
+<<<<<<< Updated upstream
     # Boucle de connexion au flux vidéo
+=======
+    # Ouvrir le stream
+>>>>>>> Stashed changes
     cap = None
     while cap is None:
         cap = open_stream(MJPEG_URL)
@@ -122,8 +224,17 @@ def process_loop():
 
     print("[SYSTEM] Démarrage du face tracking.", flush=True)
 
-    last_publish = 0
-    publish_interval = 0.05  # 20 Hz max
+    # Limite publication servo
+    last_ctrl_publish = 0.0
+    ctrl_interval = 0.05  # 20 Hz max
+
+    # Publication overlay rectangles
+    last_faces_publish = 0.0
+
+    # Debug logs
+    last_debug = 0.0
+    frames = 0
+    fps_t0 = time.time()
 
     while True:
         # Mesure du temps pour le calcul des FPS
@@ -132,7 +243,10 @@ def process_loop():
         ret, frame = cap.read()
         if not ret or frame is None:
             print("[VIDEO] Frame invalide, reconnexion...", flush=True)
-            cap.release()
+            try:
+                cap.release()
+            except Exception:
+                pass
             time.sleep(1)
             cap = None
             while cap is None:
@@ -142,11 +256,49 @@ def process_loop():
                     time.sleep(2)
             continue
 
+<<<<<<< Updated upstream
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         frame_width = frame.shape[1]
 
         # --- BLOC DE DÉTECTION AVANCÉE ---
         all_faces = []
+=======
+        now = time.time()
+        frames += 1
+
+        # Traitement image
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Détection visage (plus permissive)
+        faces = face_cascade.detectMultiScale(
+            gray,
+            scaleFactor=SCALE_FACTOR,
+            minNeighbors=MIN_NEIGHBORS,
+            minSize=(MIN_SIZE, MIN_SIZE)
+        )
+
+        # =========================
+        # 1) Publier rectangles (overlay web)
+        # =========================
+        if (now - last_faces_publish) >= FACES_INTERVAL:
+            faces_payload = {
+                "ts": now,
+                "frame_w": int(frame.shape[1]),
+                "frame_h": int(frame.shape[0]),
+                "faces": [
+                    {"x": int(x), "y": int(y), "w": int(w), "h": int(h)}
+                    for (x, y, w, h) in faces[:FACES_MAX]
+                ]
+            }
+            client.publish(STATUS_FACES_TOPIC, json.dumps(faces_payload), qos=0, retain=False)
+            last_faces_publish = now
+
+        # =========================
+        # 2) Tracking pan/tilt (mode auto)
+        # =========================
+        if len(faces) > 0 and mode_auto:
+            x, y, w, h = faces[0]
+>>>>>>> Stashed changes
 
         # 1. Détection frontale
         faces_front = face_cascade.detectMultiScale(
@@ -206,6 +358,7 @@ def process_loop():
             current_pan = clamp(current_pan, MIN_ANGLE, MAX_ANGLE)
             current_tilt = clamp(current_tilt, MIN_ANGLE, MAX_ANGLE)
 
+<<<<<<< Updated upstream
             # Publication des commandes MQTT si un mouvement est nécessaire
             now = time.time()
             if moved and (now - last_publish) > publish_interval:
@@ -243,6 +396,38 @@ def process_loop():
             with frame_lock:
                 latest_frame = encoded.tobytes()
 
+=======
+            if moved and (now - last_ctrl_publish) > ctrl_interval:
+                client.publish(TOPIC_PAN, str(current_pan))
+                client.publish(TOPIC_TILT, str(current_tilt))
+                last_ctrl_publish = now
+
+                if DEBUG:
+                    print(
+                        f"[CTRL] pan={current_pan} tilt={current_tilt} err=({error_x:.1f},{error_y:.1f}) faces={len(faces)}",
+                        flush=True
+                    )
+
+        # =========================
+        # 3) Debug périodique
+        # =========================
+        if DEBUG and (now - last_debug) >= DEBUG_INTERVAL:
+            # FPS approx
+            dt = now - fps_t0
+            fps = frames / dt if dt > 0 else 0.0
+
+            lum = mean_brightness(gray)
+            print(
+                f"[DEBUG] fps={fps:.1f} faces={len(faces)} size={frame.shape[1]}x{frame.shape[0]} "
+                f"brightness={lum:.1f} scale={SCALE_FACTOR} neigh={MIN_NEIGHBORS} min={MIN_SIZE}",
+                flush=True
+            )
+
+            # reset fps window
+            frames = 0
+            fps_t0 = now
+            last_debug = now
+>>>>>>> Stashed changes
 
 if __name__ == "__main__":
     worker = threading.Thread(target=process_loop, daemon=True)

@@ -16,8 +16,13 @@ services:
     depends_on:
       - mqtt
     environment:
+<<<<<<< Updated upstream
       ESP32_IP: "192.168.1.49"
       MJPEG_URL: "http://192.168.1.49:81/stream"
+=======
+      ESP32_IP: "192.168.1.83"
+      MJPEG_URL: "http://192.168.1.83:81/stream"
+>>>>>>> Stashed changes
       MQTT_BROKER: "mqtt"
       MQTT_PORT: "1883"
       TOL: "20"
@@ -25,6 +30,7 @@ services:
       TOPIC_PAN: "esp32cam/cmd/pan"
       TOPIC_TILT: "esp32cam/cmd/tilt"
       TOPIC_MODE: "esp32cam/cmd/mode"
+      STATUS_FACES_TOPIC: "esp32cam/status/faces"
     restart: unless-stopped
   web:
     build: ./web
@@ -40,6 +46,7 @@ services:
       STEP: "2"
       PAN_START: "90"
       TILT_START: "90"
+      FACES_TOPIC: "esp32cam/status/faces"
     ports:
       - "8080:8080"
     restart: unless-stopped
