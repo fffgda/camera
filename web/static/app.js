@@ -165,6 +165,15 @@ function initSSE() {
     }
   });
 
+  // Mise à jour immédiate des alertes dès réception via SSE
+  evtSource.addEventListener("alert", (e) => {
+    try {
+      pollAlerts();
+    } catch (err) {
+      // silent
+    }
+  });
+
   evtSource.onerror = () => {
     console.log("[SSE] Déconnecté, reconnexion automatique...");
   };
@@ -173,30 +182,71 @@ function initSSE() {
 }
 
 // =========================
+// HISTORIQUE (chargé une fois au démarrage)
+// =========================
+async function loadHistory() {
+  try {
+    const res = await fetch("/api/people/history?limit=60");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    // L'API renvoie du plus récent au plus ancien, on inverse pour le graphique
+    const sorted = data.slice().reverse();
+
+    sorted.forEach((item) => {
+      const d = new Date(item.timestamp * 1000);
+      const label = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      chartLabels.push(label);
+      chartData.push(item.count);
+
+      if (item.count > maxCountToday) {
+        maxCountToday = item.count;
+      }
+    });
+
+    // Mettre à jour les stats affichées
+    if (sorted.length > 0) {
+      const latest = sorted[sorted.length - 1];
+      currentCountEl.textContent = latest.count;
+      totalSessionEl.textContent = latest.total || 0;
+      maxCountEl.textContent = maxCountToday;
+    }
+
+    peopleChart.update();
+    console.log(`[HISTORY] ${sorted.length} points chargés depuis la base`);
+  } catch (e) {
+    console.error("[HISTORY] Erreur chargement historique:", e);
+  }
+}
+
+// =========================
 // ALERTS (polling 10s)
 // =========================
+function renderAlerts(data) {
+  totalAlerts = data.length;
+  alertCountEl.textContent = totalAlerts;
+
+  if (data.length === 0) {
+    alertsListEl.innerHTML = '<p class="hint">Aucune alerte pour le moment.</p>';
+  } else {
+    alertsListEl.innerHTML = data.map((a) => {
+      const d = new Date(a.timestamp * 1000);
+      const timeStr = d.toLocaleString("fr-FR");
+      return `<div class="alert-item">
+        <span class="alert-time">${timeStr}</span>
+        <span class="alert-msg">${a.message}</span>
+        <span class="alert-count">${a.count} pers.</span>
+      </div>`;
+    }).join("");
+  }
+}
+
 async function pollAlerts() {
   try {
     const res = await fetch("/api/alerts?limit=10");
     if (!res.ok) return;
     const data = await res.json();
-
-    totalAlerts = data.length;
-    alertCountEl.textContent = totalAlerts;
-
-    if (data.length === 0) {
-      alertsListEl.innerHTML = '<p class="hint">Aucune alerte pour le moment.</p>';
-    } else {
-      alertsListEl.innerHTML = data.map((a) => {
-        const d = new Date(a.timestamp * 1000);
-        const timeStr = d.toLocaleString("fr-FR");
-        return `<div class="alert-item">
-          <span class="alert-time">${timeStr}</span>
-          <span class="alert-msg">${a.message}</span>
-          <span class="alert-count">${a.count} pers.</span>
-        </div>`;
-      }).join("");
-    }
+    renderAlerts(data);
   } catch (e) {
     // silent
   } finally {
@@ -399,6 +449,7 @@ savePosBtn?.addEventListener("click", savePosition);
 (async function init() {
   resizeCanvasToImage();
   await loadUser();
+  await loadHistory();  // Charger l'historique avant de démarrer le SSE
   initSSE();
   pollAlerts();
   loadPositions();

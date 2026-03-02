@@ -30,6 +30,7 @@ TOPIC_TILT = os.getenv("TOPIC_TILT", "esp32cam/cmd/tilt")
 TOPIC_MODE = os.getenv("TOPIC_MODE", "esp32cam/cmd/mode")
 FACES_TOPIC = os.getenv("FACES_TOPIC", "esp32cam/status/faces")
 PEOPLE_TOPIC = os.getenv("PEOPLE_TOPIC", "esp32cam/status/people")
+ALERTS_TOPIC = os.getenv("ALERT_TOPIC", "esp32cam/status/alerts")
 
 OPENCV_STREAM_URL = os.getenv("OPENCV_STREAM_URL", "http://opencv:5001/stream")
 
@@ -39,7 +40,8 @@ TILT_MIN, TILT_MAX = 0, 180
 
 USER_DB_DIR = os.path.join(os.path.dirname(__file__), "data")
 USER_DB_PATH = os.getenv("USER_DB_PATH", os.path.join(USER_DB_DIR, "users.db"))
-os.makedirs(os.path.dirname(USER_DB_PATH), exist_ok=True)
+os.makedirs(USER_DB_DIR, exist_ok=True)
+
 DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
 DEFAULT_VIEWER_USERNAME = os.getenv("DEFAULT_VIEWER_USERNAME", "viewer")
@@ -65,6 +67,7 @@ last_people = {
     "ts": 0,
     "count": 0,
     "total_session": 0,
+    "faces": [],
 }
 
 faces_lock = Lock()
@@ -118,21 +121,6 @@ def init_user_db():
             """
         )
 
-        users_to_seed = [
-            (DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD, "admin"),
-            (DEFAULT_VIEWER_USERNAME, DEFAULT_VIEWER_PASSWORD, "viewer"),
-        ]
-
-        for username, password, role in users_to_seed:
-            existing = conn.execute(
-                "SELECT id FROM users WHERE username = ?", (username,)
-            ).fetchone()
-            if not existing:
-                conn.execute(
-                    "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-                    (username, generate_password_hash(password), role),
-                )
-
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS people_counts (
@@ -168,6 +156,21 @@ def init_user_db():
             """
         )
 
+        # Seeder les utilisateurs par défaut
+        users_to_seed = [
+            (DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD, "admin"),
+            (DEFAULT_VIEWER_USERNAME, DEFAULT_VIEWER_PASSWORD, "viewer"),
+        ]
+        for username, password, role in users_to_seed:
+            existing = conn.execute(
+                "SELECT id FROM users WHERE username = ?", (username,)
+            ).fetchone()
+            if not existing:
+                conn.execute(
+                    "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+                    (username, generate_password_hash(password), role),
+                )
+
         conn.commit()
 
 
@@ -179,7 +182,6 @@ def login_required(view_fn):
                 return jsonify({"error": "auth required"}), 401
             return redirect("/login")
         return view_fn(*args, **kwargs)
-
     return wrapped
 
 
@@ -192,7 +194,6 @@ def admin_required(view_fn):
         if user.get("role") != "admin":
             return jsonify({"error": "admin role required"}), 403
         return view_fn(*args, **kwargs)
-
     return wrapped
 
 
@@ -219,7 +220,7 @@ def on_people_message(client, userdata, msg):
 
         sse_broadcast("people", data)
 
-        # Save to SQLite history
+        # Sauvegarde dans l'historique SQLite
         with get_db_connection() as conn:
             conn.execute(
                 "INSERT INTO people_counts (timestamp, count, total) VALUES (?, ?, ?)",
@@ -230,29 +231,53 @@ def on_people_message(client, userdata, msg):
         print("[WEB] Erreur parsing people:", e, flush=True)
 
 
+def on_alerts_message(client, userdata, msg):
+    """Reçoit les alertes publiées par OpenCV et les persiste en base."""
+    try:
+        data = json.loads(msg.payload.decode(errors="ignore"))
+        with get_db_connection() as conn:
+            conn.execute(
+                "INSERT INTO alerts (timestamp, count, threshold, message) VALUES (?, ?, ?, ?)",
+                (
+                    data.get("ts", time.time()),
+                    data.get("count", 0),
+                    data.get("threshold", 0),
+                    data.get("message", ""),
+                ),
+            )
+            conn.commit()
+        sse_broadcast("alert", data)
+        print(f"[WEB] Alerte sauvegardée: {data.get('message', '')}", flush=True)
+    except Exception as e:
+        print("[WEB] Erreur parsing alert:", e, flush=True)
+
+
 def on_message(client, userdata, msg):
     if msg.topic == FACES_TOPIC:
         on_faces_message(client, userdata, msg)
     elif msg.topic == PEOPLE_TOPIC:
         on_people_message(client, userdata, msg)
+    elif msg.topic == ALERTS_TOPIC:
+        on_alerts_message(client, userdata, msg)
 
 
 # =========================
 # MQTT CLIENT
 # =========================
-client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="WebUIClient")
-client.on_message = on_message
+mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="WebUIClient")
+mqtt_client.on_message = on_message
 mqtt_connected = False
 
 try:
-    client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
-    client.subscribe([(FACES_TOPIC, 0), (PEOPLE_TOPIC, 0)])
-    client.loop_start()
+    mqtt_client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
+    mqtt_client.subscribe([
+        (FACES_TOPIC, 0),
+        (PEOPLE_TOPIC, 0),
+        (ALERTS_TOPIC, 0),
+    ])
+    mqtt_client.loop_start()
     mqtt_connected = True
-    print(
-        f"[WEB] MQTT connecte a {MQTT_BROKER}:{MQTT_PORT}, subscribe {FACES_TOPIC}, {PEOPLE_TOPIC}",
-        flush=True,
-    )
+    print(f"[WEB] MQTT connecté à {MQTT_BROKER}:{MQTT_PORT}", flush=True)
 except Exception as e:
     print(f"[WEB] MQTT indisponible: {e}", flush=True)
 
@@ -263,13 +288,16 @@ except Exception as e:
 app = Flask(__name__, static_folder="static")
 _secret_key = os.getenv("FLASK_SECRET_KEY", "")
 if not _secret_key or _secret_key == "change-this-secret":
-    print("[WARNING] FLASK_SECRET_KEY non configuree - utilisez une valeur securisee en production!", flush=True)
+    print("[WARNING] FLASK_SECRET_KEY non configurée - utilisez une valeur sécurisée en production!", flush=True)
     _secret_key = "change-this-secret"
 app.config["SECRET_KEY"] = _secret_key
 
 init_user_db()
 
 
+# =========================
+# AUTH ROUTES
+# =========================
 @app.get("/login")
 def login_page():
     return send_from_directory("static", "login.html")
@@ -310,27 +338,33 @@ def api_me():
     return jsonify({"authenticated": True, "user": user})
 
 
+# =========================
+# MAIN PAGE
+# =========================
 @app.get("/")
 @login_required
 def index():
     return send_from_directory("static", "index.html")
 
 
+# =========================
+# VIDEO PROXY
+# =========================
 def proxy_stream():
     try:
-        print(f"[VIDEO] Tentative de connexion à {OPENCV_STREAM_URL}", flush=True)
+        print(f"[VIDEO] Connexion à {OPENCV_STREAM_URL}", flush=True)
         with requests.get(OPENCV_STREAM_URL, stream=True, timeout=30) as res:
             res.raise_for_status()
-            print(f"[VIDEO] Connecté au stream OpenCV, status={res.status_code}", flush=True)
+            print(f"[VIDEO] Stream OK, status={res.status_code}", flush=True)
             for chunk in res.iter_content(chunk_size=8192):
                 if chunk:
                     yield chunk
     except requests.exceptions.ConnectionError as e:
-        print(f"[VIDEO] Erreur de connexion au stream: {e}", flush=True)
+        print(f"[VIDEO] Erreur connexion: {e}", flush=True)
     except requests.exceptions.Timeout as e:
-        print(f"[VIDEO] Timeout du stream: {e}", flush=True)
+        print(f"[VIDEO] Timeout: {e}", flush=True)
     except Exception as e:
-        print(f"[VIDEO] Erreur inattendue du stream: {e}", flush=True)
+        print(f"[VIDEO] Erreur inattendue: {e}", flush=True)
 
 
 @app.get("/video")
@@ -342,6 +376,9 @@ def video():
     )
 
 
+# =========================
+# API STATE & FACES
+# =========================
 @app.get("/api/state")
 @login_required
 def get_state():
@@ -355,6 +392,9 @@ def api_faces():
         return jsonify(last_faces)
 
 
+# =========================
+# SSE
+# =========================
 @app.get("/api/events")
 @login_required
 def sse_stream():
@@ -381,6 +421,9 @@ def sse_stream():
     )
 
 
+# =========================
+# CAMERA CONTROL
+# =========================
 @app.post("/api/mode")
 @admin_required
 def set_mode():
@@ -392,7 +435,7 @@ def set_mode():
 
     state["mode"] = mode
     if mqtt_connected:
-        client.publish(TOPIC_MODE, mode)
+        mqtt_client.publish(TOPIC_MODE, mode)
     return jsonify({"ok": True, "mode": mode})
 
 
@@ -410,7 +453,7 @@ def move():
 
     state["mode"] = "manual"
     if mqtt_connected:
-        client.publish(TOPIC_MODE, "manual")
+        mqtt_client.publish(TOPIC_MODE, "manual")
 
     if direction == "left":
         state["pan"] = clamp(state["pan"] + step, PAN_MIN, PAN_MAX)
@@ -424,8 +467,8 @@ def move():
         return jsonify({"error": "dir must be left/right/up/down"}), 400
 
     if mqtt_connected:
-        client.publish(TOPIC_PAN, str(state["pan"]))
-        client.publish(TOPIC_TILT, str(state["tilt"]))
+        mqtt_client.publish(TOPIC_PAN, str(state["pan"]))
+        mqtt_client.publish(TOPIC_TILT, str(state["tilt"]))
 
     return jsonify({"ok": True, **state})
 
@@ -438,15 +481,15 @@ def center():
     state["tilt"] = 90
 
     if mqtt_connected:
-        client.publish(TOPIC_MODE, "manual")
-        client.publish(TOPIC_PAN, "90")
-        client.publish(TOPIC_TILT, "90")
+        mqtt_client.publish(TOPIC_MODE, "manual")
+        mqtt_client.publish(TOPIC_PAN, "90")
+        mqtt_client.publish(TOPIC_TILT, "90")
 
     return jsonify({"ok": True, **state})
 
 
 # =========================
-# POSITIONS ENDPOINTS
+# POSITIONS
 # =========================
 @app.get("/api/positions")
 @login_required
@@ -509,9 +552,9 @@ def api_positions_recall():
     state["mode"] = "manual"
 
     if mqtt_connected:
-        client.publish(TOPIC_MODE, "manual")
-        client.publish(TOPIC_PAN, str(row["pan"]))
-        client.publish(TOPIC_TILT, str(row["tilt"]))
+        mqtt_client.publish(TOPIC_MODE, "manual")
+        mqtt_client.publish(TOPIC_PAN, str(row["pan"]))
+        mqtt_client.publish(TOPIC_TILT, str(row["tilt"]))
 
     return jsonify({"ok": True, "name": row["name"], "pan": row["pan"], "tilt": row["tilt"], "mode": "manual"})
 
@@ -528,7 +571,7 @@ def api_positions_delete(pos_id):
 
 
 # =========================
-# PEOPLE COUNT ENDPOINTS
+# PEOPLE COUNT
 # =========================
 @app.get("/api/people")
 @login_required
@@ -551,6 +594,9 @@ def api_people_history():
     return jsonify(history)
 
 
+# =========================
+# ALERTS
+# =========================
 @app.get("/api/alerts")
 @login_required
 def api_alerts():
@@ -561,11 +607,11 @@ def api_alerts():
             "SELECT id, timestamp, count, threshold, message FROM alerts ORDER BY timestamp DESC LIMIT ?",
             (limit,),
         ).fetchall()
-    alerts_list = [
-        {"id": r["id"], "timestamp": r["timestamp"], "count": r["count"], "threshold": r["threshold"], "message": r["message"]}
+    return jsonify([
+        {"id": r["id"], "timestamp": r["timestamp"], "count": r["count"],
+         "threshold": r["threshold"], "message": r["message"]}
         for r in rows
-    ]
-    return jsonify(alerts_list)
+    ])
 
 
 # =========================

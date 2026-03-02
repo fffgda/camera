@@ -18,7 +18,7 @@ from counting import PersonCounter
 STATUS_FACES_TOPIC = os.getenv("STATUS_FACES_TOPIC", "esp32cam/status/faces")
 STATUS_PEOPLE_TOPIC = os.getenv("STATUS_PEOPLE_TOPIC", "esp32cam/status/people")
 
-ESP32_IP = os.getenv("ESP32_IP", "172.16.8.186")
+ESP32_IP = os.getenv("ESP32_IP", "172.16.8.69")
 MJPEG_URL = os.getenv("MJPEG_URL", f"http://{ESP32_IP}:81/stream")
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt")
@@ -138,18 +138,37 @@ def clamp(v, lo, hi):
 
 
 def on_message(client, userdata, msg):
-    global mode_auto
-    if msg.topic == TOPIC_MODE:
-        m = msg.payload.decode(errors="ignore").strip().lower()
-        mode_auto = m == "auto"
-        print(f"[MQTT] Mode recu: {m} -> mode_auto={mode_auto}", flush=True)
+    global mode_auto, current_pan, current_tilt
+    topic = msg.topic
+    payload = msg.payload.decode(errors="ignore").strip()
+
+    if topic == TOPIC_MODE:
+        mode_auto = payload.lower() == "auto"
+        print(f"[MQTT] Mode recu: {payload} -> mode_auto={mode_auto}", flush=True)
+
+    elif topic == TOPIC_PAN:
+        # Synchronisation : quand le web envoie une commande manuelle,
+        # OpenCV met à jour sa position pour ne pas repartir d'un angle périmé
+        try:
+            current_pan = clamp(int(payload), MIN_ANGLE, MAX_ANGLE)
+            print(f"[MQTT] Pan sync: {current_pan}", flush=True)
+        except ValueError:
+            pass
+
+    elif topic == TOPIC_TILT:
+        try:
+            current_tilt = clamp(int(payload), MIN_ANGLE, MAX_ANGLE)
+            print(f"[MQTT] Tilt sync: {current_tilt}", flush=True)
+        except ValueError:
+            pass
 
 
 def mqtt_connect():
     c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="OpenCVClient")
     c.on_message = on_message
     c.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
-    c.subscribe(TOPIC_MODE)
+    # S'abonner aussi à pan/tilt pour rester synchronisé avec les commandes manuelles du web
+    c.subscribe([(TOPIC_MODE, 0), (TOPIC_PAN, 0), (TOPIC_TILT, 0)])
     c.loop_start()
     print(f"[MQTT] Connecte a {MQTT_BROKER}:{MQTT_PORT}", flush=True)
     return c
@@ -184,6 +203,9 @@ def main():
     global current_pan, current_tilt, latest_frame_jpeg
 
     client = mqtt_connect()
+
+    # Injecter le client MQTT dans l'AlertManager pour publier les alertes
+    alert_manager.mqtt_client = client
 
     cap = None
     while cap is None:

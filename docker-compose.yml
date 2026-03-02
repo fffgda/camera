@@ -22,8 +22,9 @@ services:
       mqtt:
         condition: service_healthy
     environment:
-      ESP32_IP: "${ESP32_IP:-192.168.1.43}"
-      MJPEG_URL: "${MJPEG_URL:-http://192.168.1.43:81/stream}"
+      ESP32_IP: "${ESP32_IP:-172.16.8.69}"
+      # MJPEG_URL construit depuis ESP32_IP — modifier uniquement ESP32_IP dans le .env suffit
+      MJPEG_URL: "${MJPEG_URL:-http://${ESP32_IP:-172.16.8.69}:81/stream}"
       MQTT_BROKER: "${MQTT_BROKER:-mqtt}"
       MQTT_PORT: "${MQTT_PORT:-1883}"
       TOL: "${TOL:-20}"
@@ -41,6 +42,7 @@ services:
       STREAM_PORT: "${STREAM_PORT:-5001}"
       ALERT_THRESHOLD: "${ALERT_THRESHOLD:-5}"
       ALERT_COOLDOWN: "${ALERT_COOLDOWN:-300}"
+      ALERT_TOPIC: "${ALERT_TOPIC:-esp32cam/status/alerts}"
       ALERT_WEBHOOK_URL: "${ALERT_WEBHOOK_URL:-}"
       ALERT_SMTP_HOST: "${ALERT_SMTP_HOST:-}"
       ALERT_SMTP_PORT: "${ALERT_SMTP_PORT:-587}"
@@ -78,6 +80,7 @@ services:
       TILT_START: "${TILT_START:-90}"
       FACES_TOPIC: "${FACES_TOPIC:-esp32cam/status/faces}"
       PEOPLE_TOPIC: "${PEOPLE_TOPIC:-esp32cam/status/people}"
+      ALERT_TOPIC: "${ALERT_TOPIC:-esp32cam/status/alerts}"
       OPENCV_STREAM_URL: "${OPENCV_STREAM_URL:-http://opencv:5001/stream}"
       FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-change-this-secret}"
       USER_DB_PATH: "${USER_DB_PATH:-/app/data/users.db}"

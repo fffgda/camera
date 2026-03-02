@@ -7,11 +7,17 @@ from urllib.request import Request, urlopen
 
 
 class AlertManager:
-    """Handles alert notifications via webhook and email."""
+    """Handles alert notifications via MQTT, webhook and email."""
 
-    def __init__(self):
+    def __init__(self, mqtt_client=None):
         self.threshold = int(os.getenv("ALERT_THRESHOLD", "5"))
         self.cooldown = int(os.getenv("ALERT_COOLDOWN", "300"))
+
+        # Topic MQTT pour les alertes (lu par le serveur web pour persistance en base)
+        self.alert_topic = os.getenv("ALERT_TOPIC", "esp32cam/status/alerts")
+
+        # Client MQTT injecté depuis app.py
+        self.mqtt_client = mqtt_client
 
         # Webhook config (Telegram, Discord, Slack)
         self.webhook_url = os.getenv("ALERT_WEBHOOK_URL", "")
@@ -38,6 +44,9 @@ class AlertManager:
         message = f"ALERTE: {count} personnes detectees (seuil: {self.threshold})"
         print(f"[ALERT] {message}", flush=True)
 
+        # Publier sur MQTT -> le serveur web persiste en base et diffuse via SSE
+        self._publish_mqtt(count, message, now)
+
         # Send webhook
         if self.webhook_url:
             self._send_webhook(message)
@@ -45,6 +54,22 @@ class AlertManager:
         # Send email
         if self.smtp_host and self.email_to:
             self._send_email(message)
+
+    def _publish_mqtt(self, count, message, ts):
+        """Publie l'alerte sur MQTT pour persistance dans le serveur web."""
+        if not self.mqtt_client:
+            return
+        try:
+            payload = json.dumps({
+                "ts": ts,
+                "count": count,
+                "threshold": self.threshold,
+                "message": message,
+            })
+            self.mqtt_client.publish(self.alert_topic, payload, qos=0)
+            print(f"[ALERT] Publié sur MQTT topic={self.alert_topic}", flush=True)
+        except Exception as e:
+            print(f"[ALERT] Erreur publication MQTT: {e}", flush=True)
 
     def _send_webhook(self, message):
         """Send alert via webhook (works with Telegram/Discord/Slack)."""

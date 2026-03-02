@@ -22,3 +22,4 @@ if not sta.isconnected():
 else:
     print("WiFi déjà connecté")
     print("Config réseau:", sta.ifconfig())
+
