@@ -26,6 +26,10 @@ services:
       TOPIC_TILT: "${TOPIC_TILT:-esp32cam/cmd/tilt}"
       TOPIC_MODE: "${TOPIC_MODE:-esp32cam/cmd/mode}"
       STATUS_FACES_TOPIC: "${STATUS_FACES_TOPIC:-esp32cam/status/faces}"
+      DETECT_EVERY_N: "${DETECT_EVERY_N:-2}"
+      DETECT_RESIZE: "${DETECT_RESIZE:-0.5}"
+      JPEG_QUALITY: "${JPEG_QUALITY:-70}"
+      DRAW_OVERLAY: "${DRAW_OVERLAY:-1}"
     restart: unless-stopped
 
   web:

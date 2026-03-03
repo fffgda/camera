@@ -225,7 +225,7 @@ def index():
 def proxy_stream():
     with requests.get(OPENCV_STREAM_URL, stream=True, timeout=10) as res:
         res.raise_for_status()
-        for chunk in res.iter_content(chunk_size=1024):
+        for chunk in res.iter_content(chunk_size=8192):
             if chunk:
                 yield chunk
 

@@ -31,6 +31,11 @@ SCALE_FACTOR = float(os.getenv("SCALE_FACTOR", "1.08"))
 MIN_NEIGHBORS = int(os.getenv("MIN_NEIGHBORS", "3"))
 MIN_SIZE = int(os.getenv("MIN_SIZE", "20"))
 
+DETECT_EVERY_N = max(1, int(os.getenv("DETECT_EVERY_N", "2")))
+DETECT_RESIZE = float(os.getenv("DETECT_RESIZE", "0.5"))
+JPEG_QUALITY = max(5, min(95, int(os.getenv("JPEG_QUALITY", "70"))))
+DRAW_OVERLAY = os.getenv("DRAW_OVERLAY", "1") == "1"
+
 FACES_MAX = int(os.getenv("FACES_MAX", "5"))
 FACES_FPS = float(os.getenv("FACES_FPS", "8"))
 FACES_INTERVAL = 1.0 / max(1e-6, FACES_FPS)
@@ -159,14 +164,28 @@ def main():
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         frame_index += 1
 
-        # Optimisation: détection visage 1 frame sur 2
-        if frame_index % 2 == 0:
-            faces = face_cascade.detectMultiScale(
-                gray,
-                scaleFactor=SCALE_FACTOR,
-                minNeighbors=MIN_NEIGHBORS,
-                minSize=(MIN_SIZE, MIN_SIZE),
-            )
+        # Optimisation: détection visage 1 frame sur N + downscale
+        if frame_index % DETECT_EVERY_N == 0:
+            if 0.0 < DETECT_RESIZE < 1.0:
+                small_gray = cv2.resize(gray, None, fx=DETECT_RESIZE, fy=DETECT_RESIZE, interpolation=cv2.INTER_LINEAR)
+                faces_small = face_cascade.detectMultiScale(
+                    small_gray,
+                    scaleFactor=SCALE_FACTOR,
+                    minNeighbors=MIN_NEIGHBORS,
+                    minSize=(max(8, int(MIN_SIZE * DETECT_RESIZE)), max(8, int(MIN_SIZE * DETECT_RESIZE))),
+                )
+                inv = 1.0 / DETECT_RESIZE
+                faces = [
+                    (int(x * inv), int(y * inv), int(w * inv), int(h * inv))
+                    for (x, y, w, h) in faces_small
+                ]
+            else:
+                faces = face_cascade.detectMultiScale(
+                    gray,
+                    scaleFactor=SCALE_FACTOR,
+                    minNeighbors=MIN_NEIGHBORS,
+                    minSize=(MIN_SIZE, MIN_SIZE),
+                )
 
         if (now - last_faces_publish) >= FACES_INTERVAL:
             faces_payload = {
@@ -208,23 +227,25 @@ def main():
                 client.publish(TOPIC_TILT, str(current_tilt))
                 last_ctrl_publish = now
 
-        for (x, y, w, h) in faces:
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        if DRAW_OVERLAY:
+            for (x, y, w, h) in faces:
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+            fps = frames / max(1e-6, (now - fps_t0))
+            cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+            mode_text = f"Mode: {'AUTO' if mode_auto else 'MANUEL'}"
+            cv2.putText(
+                frame,
+                mode_text,
+                (10, 60),
+                cv2.FONT_HERSHEY_PLAIN,
+                2,
+                (0, 0, 255) if mode_auto else (0, 255, 255),
+                2,
+            )
 
         fps = frames / max(1e-6, (now - fps_t0))
-        cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
-        mode_text = f"Mode: {'AUTO' if mode_auto else 'MANUEL'}"
-        cv2.putText(
-            frame,
-            mode_text,
-            (10, 60),
-            cv2.FONT_HERSHEY_PLAIN,
-            2,
-            (0, 0, 255) if mode_auto else (0, 255, 255),
-            2,
-        )
-
-        ok, encoded = cv2.imencode(".jpg", frame)
+        ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
         if ok:
             with frame_lock:
                 latest_frame_jpeg = encoded.tobytes()

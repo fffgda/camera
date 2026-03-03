@@ -67,7 +67,7 @@ def camera_init():
     camera.init(0,
         d0=11, d1=9, d2=8, d3=10, d4=12, d5=18, d6=17, d7=16,
         format=camera.JPEG,
-        framesize=camera.FRAME_VGA,
+        framesize=camera.FRAME_QVGA,
         xclk_freq=camera.XCLK_10MHz,
         href=7, vsync=6, reset=-1, pwdn=-1,
         sioc=5, siod=4, xclk=15, pclk=13,
@@ -75,8 +75,8 @@ def camera_init():
     )
 
     # Réglages image
-    camera.framesize(camera.FRAME_VGA)   # 640x480 (si trop lourd -> QVGA)
-    camera.quality(12)                   # 0..63 (plus petit = meilleure qualité mais plus lourd)
+    camera.framesize(camera.FRAME_QVGA)  # 320x240 pour améliorer les FPS
+    camera.quality(20)                   # plus léger = meilleur débit réseau/FPS
     camera.flip(0)
     camera.mirror(0)
 
