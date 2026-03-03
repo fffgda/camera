@@ -16,38 +16,40 @@ services:
     depends_on:
       - mqtt
     environment:
-<<<<<<< Updated upstream
-      ESP32_IP: "192.168.1.49"
-      MJPEG_URL: "http://192.168.1.49:81/stream"
-=======
-      ESP32_IP: "192.168.1.83"
-      MJPEG_URL: "http://192.168.1.83:81/stream"
->>>>>>> Stashed changes
-      MQTT_BROKER: "mqtt"
-      MQTT_PORT: "1883"
-      TOL: "20"
-      STEP: "2"
-      TOPIC_PAN: "esp32cam/cmd/pan"
-      TOPIC_TILT: "esp32cam/cmd/tilt"
-      TOPIC_MODE: "esp32cam/cmd/mode"
-      STATUS_FACES_TOPIC: "esp32cam/status/faces"
+      ESP32_IP: "${ESP32_IP:-192.168.1.83}"
+      MJPEG_URL: "${MJPEG_URL:-http://192.168.1.83:81/stream}"
+      MQTT_BROKER: "${MQTT_BROKER:-mqtt}"
+      MQTT_PORT: "${MQTT_PORT:-1883}"
+      TOL: "${TOL:-20}"
+      STEP: "${STEP:-2}"
+      TOPIC_PAN: "${TOPIC_PAN:-esp32cam/cmd/pan}"
+      TOPIC_TILT: "${TOPIC_TILT:-esp32cam/cmd/tilt}"
+      TOPIC_MODE: "${TOPIC_MODE:-esp32cam/cmd/mode}"
+      STATUS_FACES_TOPIC: "${STATUS_FACES_TOPIC:-esp32cam/status/faces}"
     restart: unless-stopped
+
   web:
     build: ./web
     container_name: web
     depends_on:
       - mqtt
     environment:
-      MQTT_BROKER: "mqtt"
-      MQTT_PORT: "1883"
-      TOPIC_PAN: "esp32cam/cmd/pan"
-      TOPIC_TILT: "esp32cam/cmd/tilt"
-      TOPIC_MODE: "esp32cam/cmd/mode"
-      STEP: "2"
-      PAN_START: "90"
-      TILT_START: "90"
-      FACES_TOPIC: "esp32cam/status/faces"
+      MQTT_BROKER: "${MQTT_BROKER:-mqtt}"
+      MQTT_PORT: "${MQTT_PORT:-1883}"
+      TOPIC_PAN: "${TOPIC_PAN:-esp32cam/cmd/pan}"
+      TOPIC_TILT: "${TOPIC_TILT:-esp32cam/cmd/tilt}"
+      TOPIC_MODE: "${TOPIC_MODE:-esp32cam/cmd/mode}"
+      STEP: "${STEP:-2}"
+      PAN_START: "${PAN_START:-90}"
+      TILT_START: "${TILT_START:-90}"
+      FACES_TOPIC: "${FACES_TOPIC:-esp32cam/status/faces}"
+      OPENCV_STREAM_URL: "${OPENCV_STREAM_URL:-http://opencv:5001/stream}"
+      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-change-this-secret}"
+      USER_DB_PATH: "${USER_DB_PATH:-/app/users.db}"
+      DEFAULT_ADMIN_USERNAME: "${DEFAULT_ADMIN_USERNAME:-admin}"
+      DEFAULT_ADMIN_PASSWORD: "${DEFAULT_ADMIN_PASSWORD:-admin123}"
+      DEFAULT_VIEWER_USERNAME: "${DEFAULT_VIEWER_USERNAME:-viewer}"
+      DEFAULT_VIEWER_PASSWORD: "${DEFAULT_VIEWER_PASSWORD:-viewer123}"
     ports:
       - "8080:8080"
     restart: unless-stopped
-

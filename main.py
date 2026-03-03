@@ -145,8 +145,6 @@ def handle_client(conn, addr):
                 conn.send(b"Content-Length: " + str(len(frame)).encode() + b"\r\n\r\n")
                 conn.send(frame)
                 conn.send(b"\r\n")
-                # Ajuste la latence / FPS
-                time.sleep_ms(80)  # ~12 FPS max (variable)
 
         else:
             http_response(conn, status="404 Not Found", body=b"Not found")
