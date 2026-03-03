@@ -8,44 +8,50 @@
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <h1>Pan/Tilt Control</h1>
-      <p class="sub">Contrôle manuel via MQTT</p>
+    <header class="topbar">
+      <div>
+        <h1>Pan/Tilt Control</h1>
+        <p class="sub">Contrôle manuel via MQTT</p>
+      </div>
+      <div class="session-info">
+        <div class="pill" id="userPill">Utilisateur: …</div>
+        <button class="small" id="logoutBtn">Se déconnecter</button>
+      </div>
     </header>
 
     <section class="card">
-      <div class="video">
-        <img id="videoFeed" src="/video" alt="Retour vidéo avec détection OpenCV" />
-      </div>
-
       <div class="row">
         <div class="pill" id="modePill">Mode: …</div>
         <div class="pill" id="posPill">Pan: … | Tilt: …</div>
       </div>
 
-      <div class="controls">
-        <button class="btn" data-dir="up">▲</button>
+      <div id="viewerNotice" class="viewer-notice hidden">
+        Mode observateur: vous pouvez regarder le flux, mais pas déplacer la caméra.
+      </div>
+
+      <div class="controls" id="controlsArea">
+        <button class="btn admin-only" data-dir="up">▲</button>
         <div class="mid">
-          <button class="btn" data-dir="left">◀</button>
-          <button class="btn center" id="centerBtn">●</button>
-          <button class="btn" data-dir="right">▶</button>
+          <button class="btn admin-only" data-dir="left">◀</button>
+          <button class="btn center admin-only" id="centerBtn">●</button>
+          <button class="btn admin-only" data-dir="right">▶</button>
         </div>
-        <button class="btn" data-dir="down">▼</button>
+        <button class="btn admin-only" data-dir="down">▼</button>
       </div>
 
       <div class="row">
-        <label class="field">
+        <label class="field admin-only">
           <span>Step</span>
           <input id="step" type="number" min="1" max="20" value="2" />
         </label>
 
-        <div class="modes">
+        <div class="modes admin-only">
           <button class="small" id="manualBtn">Manuel</button>
           <button class="small" id="autoBtn">Auto (OpenCV)</button>
         </div>
       </div>
       <div class="videoWrap">
-        <img id="cam" src="http://192.168.1.83:81/stream" alt="ESP32 stream" />
+        <img id="cam" src="/video" alt="ESP32 stream" />
         <canvas id="overlay"></canvas>
       </div>
       <p class="hint">Astuce : maintiens un bouton appuyé pour bouger en continu.</p>
