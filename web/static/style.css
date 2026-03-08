@@ -26,6 +26,21 @@ header h1 { margin:0; font-size: 28px; letter-spacing: .3px; }
   box-shadow: var(--shadow);
 }
 
+.video {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,.35);
+  margin-bottom: 18px;
+}
+
+.video img {
+  width: 100%;
+  display: block;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
 .row { display:flex; gap:12px; align-items:center; justify-content: space-between; flex-wrap: wrap; }
 .pill {
   padding: 8px 12px;

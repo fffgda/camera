@@ -16,8 +16,8 @@ services:
     depends_on:
       - mqtt
     environment:
-      ESP32_IP: "172.16.8.53"
-      MJPEG_URL: "http://172.16.8.53:81/stream"
+      ESP32_IP: "172.20.10.5"
+      MJPEG_URL: "http://172.20.10.5:81/stream"
       MQTT_BROKER: "mqtt"
       MQTT_PORT: "1883"
       TOL: "20"
