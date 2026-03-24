@@ -1,0 +1,113 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: iot_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-iot_app}
+      POSTGRES_USER: ${POSTGRES_USER:-iot_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iot_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - iot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iot_user} -d ${POSTGRES_DB:-iot_app}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - iot
+
+  ai_detection:
+    build:
+      context: ./ai_detection
+      dockerfile: Dockerfile
+    container_name: ai_detection
+    restart: unless-stopped
+    depends_on:
+      - mqtt
+    environment:
+      ESP32_STREAM_URL: ${MJPEG_URL}
+      MQTT_BROKER: ${MQTT_BROKER:-mqtt}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      TOPIC_PAN: ${TOPIC_PAN:-esp32cam/cmd/pan}
+      TOPIC_TILT: ${TOPIC_TILT:-esp32cam/cmd/tilt}
+      TOPIC_MODE: ${TOPIC_MODE:-esp32cam/cmd/mode}
+      STATUS_FACES_TOPIC: ${FACES_TOPIC:-esp32cam/status/faces}
+      YOLO_MODEL: ${YOLO_MODEL:-yolov8n.pt}
+      YOLO_CONF: ${YOLO_CONF:-0.45}
+      YOLO_IOU: ${YOLO_IOU:-0.50}
+      YOLO_IMGSZ: ${YOLO_IMGSZ:-320}
+      YOLO_DEVICE: ${YOLO_DEVICE:-cpu}
+      YOLO_CLASSES: ${YOLO_CLASSES:-0}
+      STREAM_PORT: ${STREAM_PORT:-5001}
+      DEBUG: ${DEBUG:-1}
+    ports:
+      - "5001:5001"
+    networks:
+      - iot
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+      ai_detection:
+        condition: service_started
+    environment:
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-change-this-secret}
+
+      MQTT_BROKER: ${MQTT_BROKER:-mqtt}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      TOPIC_PAN: ${TOPIC_PAN:-esp32cam/cmd/pan}
+      TOPIC_TILT: ${TOPIC_TILT:-esp32cam/cmd/tilt}
+      TOPIC_MODE: ${TOPIC_MODE:-esp32cam/cmd/mode}
+      FACES_TOPIC: ${FACES_TOPIC:-esp32cam/status/faces}
+
+      OPENCV_STREAM_URL: ${OPENCV_STREAM_URL:-http://ai_detection:5001/stream}
+
+      STEP: ${STEP:-2}
+      PAN_START: ${PAN_START:-90}
+      TILT_START: ${TILT_START:-90}
+
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-iot_app}
+      DB_USER: ${POSTGRES_USER:-iot_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-iot_password}
+
+      DEFAULT_ADMIN_USERNAME: ${DEFAULT_ADMIN_USERNAME:-admin}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-admin123}
+      DEFAULT_VIEWER_USERNAME: ${DEFAULT_VIEWER_USERNAME:-viewer}
+      DEFAULT_VIEWER_PASSWORD: ${DEFAULT_VIEWER_PASSWORD:-viewer123}
+    ports:
+      - "8080:8080"
+    networks:
+      - iot
+
+networks:
+  iot:
+    driver: bridge
+
+volumes:
+  postgres_data:
