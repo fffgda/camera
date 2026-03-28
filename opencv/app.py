@@ -9,6 +9,9 @@ import paho.mqtt.client as mqtt
 from flask import Flask, Response
 from ultralytics import YOLO
 
+from alerts import AlertManager
+from counting import PersonCounter
+
 # =========================
 # CONFIG (ENV)
 # =========================
@@ -78,16 +81,12 @@ def mean_brightness(gray):
 # =========================
 # ALERTS
 # =========================
-from alerts import AlertManager
-
 alert_manager = AlertManager()
 
 
 # =========================
 # COUNTING
 # =========================
-from counting import PersonCounter
-
 person_counter = PersonCounter()
 
 

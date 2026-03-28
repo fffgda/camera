@@ -37,7 +37,9 @@ STEP = int(os.getenv("STEP", "2"))
 PAN_MIN, PAN_MAX = 0, 180
 TILT_MIN, TILT_MAX = 0, 180
 
-USER_DB_PATH = os.getenv("USER_DB_PATH", os.path.join(os.path.dirname(__file__), "users.db"))
+USER_DB_DIR = os.path.join(os.path.dirname(__file__), "data")
+USER_DB_PATH = os.getenv("USER_DB_PATH", os.path.join(USER_DB_DIR, "users.db"))
+os.makedirs(os.path.dirname(USER_DB_PATH), exist_ok=True)
 DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
 DEFAULT_VIEWER_USERNAME = os.getenv("DEFAULT_VIEWER_USERNAME", "viewer")
@@ -223,7 +225,11 @@ except Exception as e:
 # FLASK APP
 # =========================
 app = Flask(__name__, static_folder="static")
-app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "change-this-secret")
+_secret_key = os.getenv("FLASK_SECRET_KEY", "")
+if not _secret_key or _secret_key == "change-this-secret":
+    print("[WARNING] FLASK_SECRET_KEY non configuree - utilisez une valeur securisee en production!", flush=True)
+    _secret_key = "change-this-secret"
+app.config["SECRET_KEY"] = _secret_key
 
 init_user_db()
 
@@ -275,11 +281,20 @@ def index():
 
 
 def proxy_stream():
-    with requests.get(OPENCV_STREAM_URL, stream=True, timeout=10) as res:
-        res.raise_for_status()
-        for chunk in res.iter_content(chunk_size=8192):
-            if chunk:
-                yield chunk
+    try:
+        print(f"[VIDEO] Tentative de connexion à {OPENCV_STREAM_URL}", flush=True)
+        with requests.get(OPENCV_STREAM_URL, stream=True, timeout=30) as res:
+            res.raise_for_status()
+            print(f"[VIDEO] Connecté au stream OpenCV, status={res.status_code}", flush=True)
+            for chunk in res.iter_content(chunk_size=8192):
+                if chunk:
+                    yield chunk
+    except requests.exceptions.ConnectionError as e:
+        print(f"[VIDEO] Erreur de connexion au stream: {e}", flush=True)
+    except requests.exceptions.Timeout as e:
+        print(f"[VIDEO] Timeout du stream: {e}", flush=True)
+    except Exception as e:
+        print(f"[VIDEO] Erreur inattendue du stream: {e}", flush=True)
 
 
 @app.get("/video")
@@ -324,7 +339,12 @@ def set_mode():
 def move():
     data = request.get_json(force=True)
     direction = (data.get("dir") or "").strip().lower()
-    step = int(data.get("step") or STEP)
+
+    try:
+        step = int(data.get("step") or STEP)
+    except (ValueError, TypeError):
+        return jsonify({"error": "step must be an integer"}), 400
+    step = clamp(step, 1, 45)
 
     state["mode"] = "manual"
     if mqtt_connected:

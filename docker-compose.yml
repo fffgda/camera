@@ -9,15 +9,21 @@ services:
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-W", "3"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   opencv:
     build: ./opencv
     container_name: opencv
     depends_on:
-      - mqtt
+      mqtt:
+        condition: service_healthy
     environment:
-      ESP32_IP: "${ESP32_IP:-192.168.1.83}"
-      MJPEG_URL: "${MJPEG_URL:-http://192.168.1.83:81/stream}"
+      ESP32_IP: "${ESP32_IP:-192.168.1.43}"
+      MJPEG_URL: "${MJPEG_URL:-http://192.168.1.43:81/stream}"
       MQTT_BROKER: "${MQTT_BROKER:-mqtt}"
       MQTT_PORT: "${MQTT_PORT:-1883}"
       TOL: "${TOL:-20}"
@@ -32,6 +38,7 @@ services:
       JPEG_QUALITY: "${JPEG_QUALITY:-70}"
       DRAW_OVERLAY: "${DRAW_OVERLAY:-1}"
       YOLO_CONF: "${YOLO_CONF:-0.45}"
+      STREAM_PORT: "${STREAM_PORT:-5001}"
       ALERT_THRESHOLD: "${ALERT_THRESHOLD:-5}"
       ALERT_COOLDOWN: "${ALERT_COOLDOWN:-300}"
       ALERT_WEBHOOK_URL: "${ALERT_WEBHOOK_URL:-}"
@@ -41,12 +48,20 @@ services:
       ALERT_SMTP_PASS: "${ALERT_SMTP_PASS:-}"
       ALERT_EMAIL_TO: "${ALERT_EMAIL_TO:-}"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/stream')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   web:
     build: ./web
     container_name: web
     depends_on:
-      - mqtt
+      mqtt:
+        condition: service_healthy
+      opencv:
+        condition: service_started
     environment:
       MQTT_BROKER: "${MQTT_BROKER:-mqtt}"
       MQTT_PORT: "${MQTT_PORT:-1883}"
@@ -60,11 +75,21 @@ services:
       PEOPLE_TOPIC: "${PEOPLE_TOPIC:-esp32cam/status/people}"
       OPENCV_STREAM_URL: "${OPENCV_STREAM_URL:-http://opencv:5001/stream}"
       FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-change-this-secret}"
-      USER_DB_PATH: "${USER_DB_PATH:-/app/users.db}"
+      USER_DB_PATH: "${USER_DB_PATH:-/app/data/users.db}"
       DEFAULT_ADMIN_USERNAME: "${DEFAULT_ADMIN_USERNAME:-admin}"
       DEFAULT_ADMIN_PASSWORD: "${DEFAULT_ADMIN_PASSWORD:-admin123}"
       DEFAULT_VIEWER_USERNAME: "${DEFAULT_VIEWER_USERNAME:-viewer}"
       DEFAULT_VIEWER_PASSWORD: "${DEFAULT_VIEWER_PASSWORD:-viewer123}"
     ports:
       - "8080:8080"
+    volumes:
+      - web_data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  web_data:

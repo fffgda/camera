@@ -126,7 +126,7 @@ async function pollFaces() {
   } catch (e) {
     ctx.clearRect(0, 0, overlay.width, overlay.height);
   } finally {
-    setTimeout(pollFaces, 120);
+    setTimeout(pollFaces, 500);
   }
 }
 
