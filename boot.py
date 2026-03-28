@@ -1,8 +1,8 @@
 # boot.py -- Configuration initiale Wi-Fi
 import network, time
 
-SSID = "Van de surveillance 3"
-PASSWORD = "Az3rty1234568!"
+SSID = "Livebox-7A60"
+PASSWORD = "Pinkfloyd1970!"
 
 sta = network.WLAN(network.STA_IF)
 sta.active(True)

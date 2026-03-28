@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+import time
 from functools import wraps
 from threading import Lock
 
@@ -28,6 +29,7 @@ TOPIC_PAN = os.getenv("TOPIC_PAN", "esp32cam/cmd/pan")
 TOPIC_TILT = os.getenv("TOPIC_TILT", "esp32cam/cmd/tilt")
 TOPIC_MODE = os.getenv("TOPIC_MODE", "esp32cam/cmd/mode")
 FACES_TOPIC = os.getenv("FACES_TOPIC", "esp32cam/status/faces")
+PEOPLE_TOPIC = os.getenv("PEOPLE_TOPIC", "esp32cam/status/people")
 
 OPENCV_STREAM_URL = os.getenv("OPENCV_STREAM_URL", "http://opencv:5001/stream")
 
@@ -57,7 +59,14 @@ last_faces = {
     "faces": [],
 }
 
+last_people = {
+    "ts": 0,
+    "count": 0,
+    "total_session": 0,
+}
+
 faces_lock = Lock()
+people_lock = Lock()
 
 # =========================
 # HELPERS
@@ -101,6 +110,29 @@ def init_user_db():
                     (username, generate_password_hash(password), role),
                 )
 
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS people_counts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL NOT NULL,
+                count INTEGER NOT NULL,
+                total INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL NOT NULL,
+                count INTEGER NOT NULL,
+                threshold INTEGER NOT NULL,
+                message TEXT NOT NULL
+            )
+            """
+        )
+
         conn.commit()
 
 
@@ -142,9 +174,29 @@ def on_faces_message(client, userdata, msg):
         print("[WEB] Erreur parsing faces:", e, flush=True)
 
 
+def on_people_message(client, userdata, msg):
+    global last_people
+    try:
+        data = json.loads(msg.payload.decode(errors="ignore"))
+        with people_lock:
+            last_people = data
+
+        # Save to SQLite history
+        with get_db_connection() as conn:
+            conn.execute(
+                "INSERT INTO people_counts (timestamp, count, total) VALUES (?, ?, ?)",
+                (data.get("ts", time.time()), data.get("count", 0), data.get("total_session", 0)),
+            )
+            conn.commit()
+    except Exception as e:
+        print("[WEB] Erreur parsing people:", e, flush=True)
+
+
 def on_message(client, userdata, msg):
     if msg.topic == FACES_TOPIC:
         on_faces_message(client, userdata, msg)
+    elif msg.topic == PEOPLE_TOPIC:
+        on_people_message(client, userdata, msg)
 
 
 # =========================
@@ -156,11 +208,11 @@ mqtt_connected = False
 
 try:
     client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
-    client.subscribe(FACES_TOPIC)
+    client.subscribe([(FACES_TOPIC, 0), (PEOPLE_TOPIC, 0)])
     client.loop_start()
     mqtt_connected = True
     print(
-        f"[WEB] MQTT connecté à {MQTT_BROKER}:{MQTT_PORT}, subscribe {FACES_TOPIC}",
+        f"[WEB] MQTT connecte a {MQTT_BROKER}:{MQTT_PORT}, subscribe {FACES_TOPIC}, {PEOPLE_TOPIC}",
         flush=True,
     )
 except Exception as e:
@@ -309,6 +361,56 @@ def center():
         client.publish(TOPIC_TILT, "90")
 
     return jsonify({"ok": True, **state})
+
+
+# =========================
+# PEOPLE COUNT ENDPOINTS
+# =========================
+@app.get("/api/people")
+@login_required
+def api_people():
+    with people_lock:
+        return jsonify(last_people)
+
+
+@app.get("/api/people/history")
+@login_required
+def api_people_history():
+    limit = int(request.args.get("limit", "100"))
+    limit = min(max(1, limit), 1000)
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT timestamp, count, total FROM people_counts ORDER BY timestamp DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    history = [{"timestamp": r["timestamp"], "count": r["count"], "total": r["total"]} for r in rows]
+    return jsonify(history)
+
+
+@app.get("/api/alerts")
+@login_required
+def api_alerts():
+    limit = int(request.args.get("limit", "50"))
+    limit = min(max(1, limit), 200)
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, timestamp, count, threshold, message FROM alerts ORDER BY timestamp DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    alerts_list = [
+        {"id": r["id"], "timestamp": r["timestamp"], "count": r["count"], "threshold": r["threshold"], "message": r["message"]}
+        for r in rows
+    ]
+    return jsonify(alerts_list)
+
+
+# =========================
+# HEALTH CHECK
+# =========================
+@app.get("/health")
+@app.get("/v1/health")
+def health_check():
+    return jsonify({"status": "healthy", "service": "web"})
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ body { margin:0; background: radial-gradient(1200px 600px at 30% -10%, #1f2a44 0
 .session-info { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 header h1 { margin:0; font-size: 28px; letter-spacing: .3px; }
+h2 { margin: 0 0 12px; font-size: 20px; letter-spacing: .2px; }
 .sub { margin: 6px 0 0; color: var(--muted); }
 
 .card {
@@ -101,7 +102,7 @@ header h1 { margin:0; font-size: 28px; letter-spacing: .3px; }
   position: relative;
   width: 100%;
   max-width: 720px;
-  margin-top: 16px;
+  margin-bottom: 18px;
 }
 
 #cam{
@@ -120,6 +121,85 @@ header h1 { margin:0; font-size: 28px; letter-spacing: .3px; }
   pointer-events: none;
 }
 
+/* =========================
+   DASHBOARD STATS
+   ========================= */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.stat-card {
+  background: rgba(0,0,0,.3);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.2;
+}
+
+.stat-label {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.chart-container {
+  width: 100%;
+  height: 200px;
+  margin-top: 12px;
+}
+
+/* =========================
+   ALERTS LIST
+   ========================= */
+.alerts-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.alert-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(239,68,68,.2);
+  border-radius: 10px;
+  background: rgba(239,68,68,.05);
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.alert-time {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.alert-msg {
+  flex: 1;
+  color: #fca5a5;
+}
+
+.alert-count {
+  color: #fca5a5;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* =========================
+   AUTH
+   ========================= */
 .auth-wrap { max-width: 460px; }
 .auth-card h1 { margin: 0; }
 .auth-form { margin-top: 16px; display: grid; gap: 12px; }

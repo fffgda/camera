@@ -26,10 +26,20 @@ services:
       TOPIC_TILT: "${TOPIC_TILT:-esp32cam/cmd/tilt}"
       TOPIC_MODE: "${TOPIC_MODE:-esp32cam/cmd/mode}"
       STATUS_FACES_TOPIC: "${STATUS_FACES_TOPIC:-esp32cam/status/faces}"
+      STATUS_PEOPLE_TOPIC: "${STATUS_PEOPLE_TOPIC:-esp32cam/status/people}"
       DETECT_EVERY_N: "${DETECT_EVERY_N:-2}"
       DETECT_RESIZE: "${DETECT_RESIZE:-0.5}"
       JPEG_QUALITY: "${JPEG_QUALITY:-70}"
       DRAW_OVERLAY: "${DRAW_OVERLAY:-1}"
+      YOLO_CONF: "${YOLO_CONF:-0.45}"
+      ALERT_THRESHOLD: "${ALERT_THRESHOLD:-5}"
+      ALERT_COOLDOWN: "${ALERT_COOLDOWN:-300}"
+      ALERT_WEBHOOK_URL: "${ALERT_WEBHOOK_URL:-}"
+      ALERT_SMTP_HOST: "${ALERT_SMTP_HOST:-}"
+      ALERT_SMTP_PORT: "${ALERT_SMTP_PORT:-587}"
+      ALERT_SMTP_USER: "${ALERT_SMTP_USER:-}"
+      ALERT_SMTP_PASS: "${ALERT_SMTP_PASS:-}"
+      ALERT_EMAIL_TO: "${ALERT_EMAIL_TO:-}"
     restart: unless-stopped
 
   web:
@@ -47,6 +57,7 @@ services:
       PAN_START: "${PAN_START:-90}"
       TILT_START: "${TILT_START:-90}"
       FACES_TOPIC: "${FACES_TOPIC:-esp32cam/status/faces}"
+      PEOPLE_TOPIC: "${PEOPLE_TOPIC:-esp32cam/status/people}"
       OPENCV_STREAM_URL: "${OPENCV_STREAM_URL:-http://opencv:5001/stream}"
       FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-change-this-secret}"
       USER_DB_PATH: "${USER_DB_PATH:-/app/users.db}"

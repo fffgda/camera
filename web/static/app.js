@@ -13,8 +13,78 @@ const cam = document.getElementById("cam");
 const overlay = document.getElementById("overlay");
 const ctx = overlay.getContext("2d");
 
-let isAdmin = false;
+const currentCountEl = document.getElementById("currentCount");
+const maxCountEl = document.getElementById("maxCount");
+const totalSessionEl = document.getElementById("totalSession");
+const alertCountEl = document.getElementById("alertCount");
+const alertsListEl = document.getElementById("alertsList");
 
+let isAdmin = false;
+let maxCountToday = 0;
+let totalAlerts = 0;
+
+// =========================
+// CHART
+// =========================
+const chartCtx = document.getElementById("peopleChart").getContext("2d");
+const maxDataPoints = 60;
+const chartLabels = [];
+const chartData = [];
+
+const peopleChart = new Chart(chartCtx, {
+  type: "line",
+  data: {
+    labels: chartLabels,
+    datasets: [{
+      label: "Personnes",
+      data: chartData,
+      borderColor: "#60a5fa",
+      backgroundColor: "rgba(96, 165, 250, 0.1)",
+      fill: true,
+      tension: 0.3,
+      pointRadius: 2,
+    }],
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    scales: {
+      x: {
+        display: true,
+        grid: { color: "rgba(255,255,255,0.05)" },
+        ticks: { color: "#94a3b8", maxTicksLimit: 10 },
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: "rgba(255,255,255,0.05)" },
+        ticks: { color: "#94a3b8", stepSize: 1 },
+      },
+    },
+    plugins: {
+      legend: { display: false },
+    },
+  },
+});
+
+function addChartPoint(count) {
+  const now = new Date();
+  const label = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  chartLabels.push(label);
+  chartData.push(count);
+
+  if (chartLabels.length > maxDataPoints) {
+    chartLabels.shift();
+    chartData.shift();
+  }
+
+  peopleChart.update();
+}
+
+// =========================
+// OVERLAY
+// =========================
 function resizeCanvasToImage() {
   const rect = cam.getBoundingClientRect();
   overlay.width = Math.round(rect.width);
@@ -43,7 +113,7 @@ function drawFaces(data) {
     const w = f.w * sx;
     const h = f.h * sy;
     ctx.strokeRect(x, y, w, h);
-    ctx.fillText(`Face ${i + 1}`, x + 6, y - 6);
+    ctx.fillText(`Person ${i + 1}`, x + 6, y - 6);
   });
 }
 
@@ -60,6 +130,64 @@ async function pollFaces() {
   }
 }
 
+// =========================
+// PEOPLE COUNT
+// =========================
+async function pollPeople() {
+  try {
+    const res = await fetch("/api/people");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const count = data.count || 0;
+    currentCountEl.textContent = count;
+    totalSessionEl.textContent = data.total_session || 0;
+
+    if (count > maxCountToday) {
+      maxCountToday = count;
+      maxCountEl.textContent = maxCountToday;
+    }
+
+    addChartPoint(count);
+  } catch (e) {
+    // silent
+  } finally {
+    setTimeout(pollPeople, 2000);
+  }
+}
+
+async function pollAlerts() {
+  try {
+    const res = await fetch("/api/alerts?limit=10");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    totalAlerts = data.length;
+    alertCountEl.textContent = totalAlerts;
+
+    if (data.length === 0) {
+      alertsListEl.innerHTML = '<p class="hint">Aucune alerte pour le moment.</p>';
+    } else {
+      alertsListEl.innerHTML = data.map((a) => {
+        const d = new Date(a.timestamp * 1000);
+        const timeStr = d.toLocaleString("fr-FR");
+        return `<div class="alert-item">
+          <span class="alert-time">${timeStr}</span>
+          <span class="alert-msg">${a.message}</span>
+          <span class="alert-count">${a.count} pers.</span>
+        </div>`;
+      }).join("");
+    }
+  } catch (e) {
+    // silent
+  } finally {
+    setTimeout(pollAlerts, 5000);
+  }
+}
+
+// =========================
+// API
+// =========================
 async function api(path, body) {
   const res = await fetch(path, {
     method: "POST",
@@ -169,6 +297,8 @@ logoutBtn?.addEventListener("click", async () => {
   resizeCanvasToImage();
   await loadUser();
   pollFaces();
+  pollPeople();
+  pollAlerts();
   refresh();
   setInterval(refresh, 1500);
 })();
