@@ -115,6 +115,14 @@ except Exception as e:
 
 **MQTT topics:** `esp32cam/{cmd|status}/{topic}` pattern
 
+### MicroPython (ESP32 firmware)
+
+- Compact imports: `import network, time, socket`
+- No type hints (MicroPython constraint)
+- Bare `except:` acceptable for hardware cleanup (`camera.deinit()`)
+- GPIO pins: avoid 13/15 (camera XCLK/PCLK), use 1/2 for servos
+- WiFi credentials in `wifi_config.py` (gitignored, see `wifi_config_example.py`)
+
 ### JavaScript (Frontend)
 
 - `camelCase` for variables/functions
@@ -130,9 +138,19 @@ except Exception as e:
 
 ---
 
+## Docker Notes
+
+- Services: `mqtt` (Mosquitto), `opencv` (YOLO detection), `web` (Flask dashboard)
+- Images use `python:3.11-slim` base
+- OpenCV container needs `libgl1`, `libglib2.0-0`, `libgomp1` for YOLO inference
+- Persistent data in `mosquitto/data/` and `mosquitto/log/` (volumes)
+- Health endpoint: `GET /health` on web service (port 8080)
+
+---
+
 ## Environment Variables
 
-All config via `.env` file (see `.env-example`):
+All config via `.env` file (gitignored). WiFi creds via `wifi_config.py` (gitignored, see `wifi_config_example.py`):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -170,3 +188,9 @@ ALERT_WEBHOOK_URL=https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<CHAT_
 ```bash
 docker compose exec opencv python -c "from ultralytics import YOLO; print(YOLO('yolov8n.pt'))"
 ```
+
+---
+
+## Cursor / Copilot Rules
+
+No `.cursor/rules/`, `.cursorrules`, or `.github/copilot-instructions.md` files present.
