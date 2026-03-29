@@ -71,6 +71,27 @@ faces_lock = Lock()
 people_lock = Lock()
 
 # =========================
+# SSE MANAGER
+# =========================
+sse_clients = []
+sse_lock = Lock()
+
+
+def sse_broadcast(event_type, data):
+    """Envoie un événement SSE à tous les clients connectés."""
+    message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+    with sse_lock:
+        dead = []
+        for q in sse_clients:
+            try:
+                q.append(message)
+            except Exception:
+                dead.append(q)
+        for q in dead:
+            sse_clients.remove(q)
+
+
+# =========================
 # HELPERS
 # =========================
 def clamp(v, lo, hi):
@@ -184,6 +205,7 @@ def on_faces_message(client, userdata, msg):
         data = json.loads(msg.payload.decode(errors="ignore"))
         with faces_lock:
             last_faces = data
+        sse_broadcast("faces", data)
     except Exception as e:
         print("[WEB] Erreur parsing faces:", e, flush=True)
 
@@ -194,6 +216,8 @@ def on_people_message(client, userdata, msg):
         data = json.loads(msg.payload.decode(errors="ignore"))
         with people_lock:
             last_people = data
+
+        sse_broadcast("people", data)
 
         # Save to SQLite history
         with get_db_connection() as conn:
@@ -329,6 +353,32 @@ def get_state():
 def api_faces():
     with faces_lock:
         return jsonify(last_faces)
+
+
+@app.get("/api/events")
+@login_required
+def sse_stream():
+    def generate():
+        q = []
+        with sse_lock:
+            sse_clients.append(q)
+        try:
+            while True:
+                if q:
+                    msg = q.pop(0)
+                    yield msg
+                else:
+                    yield ": heartbeat\n\n"
+                    time.sleep(0.5)
+        finally:
+            with sse_lock:
+                if q in sse_clients:
+                    sse_clients.remove(q)
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/mode")

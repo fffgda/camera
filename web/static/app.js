@@ -121,45 +121,60 @@ function drawFaces(data) {
   });
 }
 
-async function pollFaces() {
-  try {
-    const res = await fetch("/api/faces");
-    if (!res.ok) return;
-    const data = await res.json();
-    drawFaces(data);
-  } catch (e) {
-    ctx.clearRect(0, 0, overlay.width, overlay.height);
-  } finally {
-    setTimeout(pollFaces, 500);
-  }
-}
-
 // =========================
-// PEOPLE COUNT
+// SSE (Server-Sent Events)
 // =========================
-async function pollPeople() {
-  try {
-    const res = await fetch("/api/people");
-    if (!res.ok) return;
-    const data = await res.json();
+function initSSE() {
+  const evtSource = new EventSource("/api/events");
 
-    const count = data.count || 0;
-    currentCountEl.textContent = count;
-    totalSessionEl.textContent = data.total_session || 0;
-
-    if (count > maxCountToday) {
-      maxCountToday = count;
-      maxCountEl.textContent = maxCountToday;
+  evtSource.addEventListener("faces", (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      drawFaces(data);
+    } catch (err) {
+      // silent
     }
+  });
 
-    addChartPoint(count);
-  } catch (e) {
-    // silent
-  } finally {
-    setTimeout(pollPeople, 2000);
-  }
+  evtSource.addEventListener("people", (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      const count = data.count || 0;
+      currentCountEl.textContent = count;
+      totalSessionEl.textContent = data.total_session || 0;
+
+      if (count > maxCountToday) {
+        maxCountToday = count;
+        maxCountEl.textContent = maxCountToday;
+      }
+
+      addChartPoint(count);
+    } catch (err) {
+      // silent
+    }
+  });
+
+  evtSource.addEventListener("motion", (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.motion) {
+        console.log("[SSE] Mouvement détecté");
+      }
+    } catch (err) {
+      // silent
+    }
+  });
+
+  evtSource.onerror = () => {
+    console.log("[SSE] Déconnecté, reconnexion automatique...");
+  };
+
+  return evtSource;
 }
 
+// =========================
+// ALERTS (polling 10s)
+// =========================
 async function pollAlerts() {
   try {
     const res = await fetch("/api/alerts?limit=10");
@@ -185,7 +200,7 @@ async function pollAlerts() {
   } catch (e) {
     // silent
   } finally {
-    setTimeout(pollAlerts, 5000);
+    setTimeout(pollAlerts, 10000);
   }
 }
 
@@ -384,10 +399,9 @@ savePosBtn?.addEventListener("click", savePosition);
 (async function init() {
   resizeCanvasToImage();
   await loadUser();
-  pollFaces();
-  pollPeople();
+  initSSE();
   pollAlerts();
   loadPositions();
   refresh();
-  setInterval(refresh, 1500);
+  setInterval(refresh, 3000);
 })();
