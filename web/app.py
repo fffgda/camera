@@ -135,6 +135,18 @@ def init_user_db():
             """
         )
 
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS positions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                pan INTEGER NOT NULL,
+                tilt INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
         conn.commit()
 
 
@@ -381,6 +393,88 @@ def center():
         client.publish(TOPIC_TILT, "90")
 
     return jsonify({"ok": True, **state})
+
+
+# =========================
+# POSITIONS ENDPOINTS
+# =========================
+@app.get("/api/positions")
+@login_required
+def api_positions():
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, name, pan, tilt, created_at FROM positions ORDER BY name ASC"
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.post("/api/positions")
+@admin_required
+def api_positions_create():
+    data = request.get_json(force=True)
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+
+    try:
+        pan = int(data.get("pan", state["pan"]))
+        tilt = int(data.get("tilt", state["tilt"]))
+    except (ValueError, TypeError):
+        return jsonify({"error": "pan and tilt must be integers"}), 400
+
+    pan = clamp(pan, PAN_MIN, PAN_MAX)
+    tilt = clamp(tilt, TILT_MIN, TILT_MAX)
+
+    with get_db_connection() as conn:
+        try:
+            conn.execute(
+                "INSERT INTO positions (name, pan, tilt) VALUES (?, ?, ?)",
+                (name, pan, tilt),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            return jsonify({"error": f"position '{name}' already exists"}), 409
+
+    return jsonify({"ok": True, "name": name, "pan": pan, "tilt": tilt})
+
+
+@app.post("/api/positions/recall")
+@admin_required
+def api_positions_recall():
+    data = request.get_json(force=True)
+    pos_id = data.get("id")
+    if not pos_id:
+        return jsonify({"error": "id is required"}), 400
+
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT id, name, pan, tilt FROM positions WHERE id = ?", (pos_id,)
+        ).fetchone()
+
+    if not row:
+        return jsonify({"error": "position not found"}), 404
+
+    state["pan"] = row["pan"]
+    state["tilt"] = row["tilt"]
+    state["mode"] = "manual"
+
+    if mqtt_connected:
+        client.publish(TOPIC_MODE, "manual")
+        client.publish(TOPIC_PAN, str(row["pan"]))
+        client.publish(TOPIC_TILT, str(row["tilt"]))
+
+    return jsonify({"ok": True, "name": row["name"], "pan": row["pan"], "tilt": row["tilt"], "mode": "manual"})
+
+
+@app.delete("/api/positions/<int:pos_id>")
+@admin_required
+def api_positions_delete(pos_id):
+    with get_db_connection() as conn:
+        result = conn.execute("DELETE FROM positions WHERE id = ?", (pos_id,))
+        conn.commit()
+        if result.rowcount == 0:
+            return jsonify({"error": "position not found"}), 404
+    return jsonify({"ok": True})
 
 
 # =========================

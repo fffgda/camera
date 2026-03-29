@@ -19,6 +19,10 @@ const totalSessionEl = document.getElementById("totalSession");
 const alertCountEl = document.getElementById("alertCount");
 const alertsListEl = document.getElementById("alertsList");
 
+const posNameInput = document.getElementById("posName");
+const savePosBtn = document.getElementById("savePosBtn");
+const positionsListEl = document.getElementById("positionsList");
+
 let isAdmin = false;
 let maxCountToday = 0;
 let totalAlerts = 0;
@@ -293,12 +297,97 @@ logoutBtn?.addEventListener("click", async () => {
   window.location.href = "/login";
 });
 
+// =========================
+// POSITIONS
+// =========================
+function renderPositions(positions) {
+  if (!positions || positions.length === 0) {
+    positionsListEl.innerHTML = '<p class="hint">Aucune position sauvegardée.</p>';
+    return;
+  }
+
+  positionsListEl.innerHTML = positions.map((p) => {
+    const deleteBtn = isAdmin
+      ? `<button class="small pos-delete" data-id="${p.id}" title="Supprimer">✕</button>`
+      : '';
+    return `<div class="position-item">
+      <button class="pos-btn" data-id="${p.id}" title="Pan: ${p.pan} | Tilt: ${p.tilt}">
+        <span class="pos-name">${p.name}</span>
+        <span class="pos-angles">P:${p.pan} T:${p.tilt}</span>
+      </button>
+      ${deleteBtn}
+    </div>`;
+  }).join("");
+
+  positionsListEl.querySelectorAll(".pos-btn").forEach((btn) => {
+    btn.addEventListener("click", () => recallPosition(parseInt(btn.dataset.id, 10)));
+  });
+
+  positionsListEl.querySelectorAll(".pos-delete").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deletePosition(parseInt(btn.dataset.id, 10));
+    });
+  });
+}
+
+async function loadPositions() {
+  try {
+    const res = await fetch("/api/positions");
+    if (!res.ok) return;
+    const positions = await res.json();
+    renderPositions(positions);
+  } catch (e) {
+    // silent
+  }
+}
+
+async function savePosition() {
+  if (!isAdmin) return;
+  const name = posNameInput.value.trim();
+  if (!name) return;
+
+  try {
+    const stateRes = await fetch("/api/state");
+    const s = await stateRes.json();
+    await api("/api/positions", { name, pan: s.pan, tilt: s.tilt });
+    posNameInput.value = "";
+    loadPositions();
+  } catch (e) {
+    console.error("Erreur sauvegarde position:", e);
+  }
+}
+
+async function recallPosition(id) {
+  if (!isAdmin) return;
+  try {
+    const s = await api("/api/positions/recall", { id });
+    modePill.textContent = `Mode: ${s.mode}`;
+    posPill.textContent = `Pan: ${s.pan} | Tilt: ${s.tilt}`;
+  } catch (e) {
+    console.error("Erreur rappel position:", e);
+  }
+}
+
+async function deletePosition(id) {
+  if (!isAdmin) return;
+  try {
+    await fetch(`/api/positions/${id}`, { method: "DELETE" });
+    loadPositions();
+  } catch (e) {
+    console.error("Erreur suppression position:", e);
+  }
+}
+
+savePosBtn?.addEventListener("click", savePosition);
+
 (async function init() {
   resizeCanvasToImage();
   await loadUser();
   pollFaces();
   pollPeople();
   pollAlerts();
+  loadPositions();
   refresh();
   setInterval(refresh, 1500);
 })();

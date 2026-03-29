@@ -223,3 +223,83 @@ h2 { margin: 0 0 12px; font-size: 20px; letter-spacing: .2px; }
   border-radius: 10px;
   margin-top: 12px;
 }
+
+/* =========================
+   POSITIONS
+   ========================= */
+.save-position-row {
+  margin-bottom: 12px;
+}
+
+.pos-input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,.25);
+  color: var(--text);
+  min-width: 0;
+}
+
+.pos-input::placeholder {
+  color: var(--muted);
+}
+
+.positions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.position-item {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.pos-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(96,165,250,.1), rgba(0,0,0,.2));
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color .2s ease, transform .05s ease;
+}
+
+.pos-btn:hover {
+  border-color: rgba(96,165,250,.6);
+}
+
+.pos-btn:active {
+  transform: scale(.97);
+}
+
+.pos-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pos-angles {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pos-delete {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(239,68,68,.3);
+  background: rgba(239,68,68,.1);
+  color: #fca5a5;
+  cursor: pointer;
+  transition: border-color .2s ease;
+  align-self: stretch;
+}
+
+.pos-delete:hover {
+  border-color: rgba(239,68,68,.6);
+}

@@ -45,6 +45,12 @@ FACES_INTERVAL = 1.0 / max(1e-6, FACES_FPS)
 DEBUG = os.getenv("DEBUG", "1") == "1"
 DEBUG_INTERVAL = float(os.getenv("DEBUG_INTERVAL", "1.0"))
 
+MOTION_ENABLED = os.getenv("MOTION_ENABLED", "1") == "1"
+MOTION_THRESHOLD = int(os.getenv("MOTION_THRESHOLD", "25"))
+MOTION_MIN_PIXELS = int(os.getenv("MOTION_MIN_PIXELS", "500"))
+MOTION_TOPIC = os.getenv("MOTION_TOPIC", "esp32cam/status/motion")
+MOTION_COOLDOWN = float(os.getenv("MOTION_COOLDOWN", "2.0"))
+
 # =========================
 # YOLO MODEL
 # =========================
@@ -76,6 +82,30 @@ def detect_persons(frame, det_resize):
 
 def mean_brightness(gray):
     return float(np.mean(gray))
+
+
+# =========================
+# MOTION DETECTOR
+# =========================
+class MotionDetector:
+    def __init__(self, threshold=25, min_pixels=500):
+        self.prev_gray = None
+        self.threshold = threshold
+        self.min_pixels = min_pixels
+        self.motion_detected = False
+
+    def detect(self, frame):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (21, 21), 0)
+        if self.prev_gray is None:
+            self.prev_gray = gray
+            return False
+        delta = cv2.absdiff(self.prev_gray, gray)
+        self.prev_gray = gray
+        _, thresh = cv2.threshold(delta, self.threshold, 255, cv2.THRESH_BINARY)
+        changed_pixels = cv2.countNonZero(thresh)
+        self.motion_detected = changed_pixels > self.min_pixels
+        return self.motion_detected
 
 
 # =========================
@@ -164,6 +194,8 @@ def main():
 
     print("[SYSTEM] Demarrage du person tracking (YOLO).", flush=True)
 
+    motion_detector = MotionDetector(threshold=MOTION_THRESHOLD, min_pixels=MOTION_MIN_PIXELS) if MOTION_ENABLED else None
+    last_motion_publish = 0.0
     last_ctrl_publish = 0.0
     ctrl_interval = 0.05
     last_faces_publish = 0.0
@@ -195,8 +227,17 @@ def main():
         frames += 1
         frame_index += 1
 
-        # Detection YOLO 1 frame sur N
-        if frame_index % DETECT_EVERY_N == 0:
+        # Motion detection
+        has_motion = False
+        if motion_detector:
+            has_motion = motion_detector.detect(frame)
+            if has_motion and (now - last_motion_publish) >= MOTION_COOLDOWN:
+                client.publish(MOTION_TOPIC, json.dumps({"ts": now, "motion": True}), qos=0, retain=False)
+                last_motion_publish = now
+
+        # Detection YOLO 1 frame sur N, or when motion detected
+        should_detect = (frame_index % DETECT_EVERY_N == 0) or has_motion
+        if should_detect:
             persons = detect_persons(frame, DETECT_RESIZE)
 
         # Publish faces (persons as bounding boxes)
@@ -266,6 +307,10 @@ def main():
             mode_text = f"Mode: {'AUTO' if mode_auto else 'MANUEL'}"
             cv2.putText(frame, mode_text, (10, 60), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255) if mode_auto else (0, 255, 255), 2)
             cv2.putText(frame, f"Personnes: {len(persons)}", (10, 90), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
+            if motion_detector:
+                motion_color = (0, 0, 255) if has_motion else (128, 128, 128)
+                motion_text = f"Motion: {'OUI' if has_motion else 'NON'}"
+                cv2.putText(frame, motion_text, (10, 120), cv2.FONT_HERSHEY_PLAIN, 2, motion_color, 2)
 
         # Encode JPEG
         ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])

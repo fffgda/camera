@@ -47,6 +47,11 @@ services:
       ALERT_SMTP_USER: "${ALERT_SMTP_USER:-}"
       ALERT_SMTP_PASS: "${ALERT_SMTP_PASS:-}"
       ALERT_EMAIL_TO: "${ALERT_EMAIL_TO:-}"
+      MOTION_ENABLED: "${MOTION_ENABLED:-1}"
+      MOTION_THRESHOLD: "${MOTION_THRESHOLD:-25}"
+      MOTION_MIN_PIXELS: "${MOTION_MIN_PIXELS:-500}"
+      MOTION_TOPIC: "${MOTION_TOPIC:-esp32cam/status/motion}"
+      MOTION_COOLDOWN: "${MOTION_COOLDOWN:-2.0}"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/stream')"]
