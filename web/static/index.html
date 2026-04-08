@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>ESP32 Pan/Tilt Control</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
   <div class="wrap">
@@ -20,6 +21,11 @@
     </header>
 
     <section class="card">
+      <div class="videoWrap">
+        <img id="cam" src="/video" alt="ESP32 stream" />
+        <canvas id="overlay"></canvas>
+      </div>
+
       <div class="row">
         <div class="pill" id="modePill">Mode: …</div>
         <div class="pill" id="posPill">Pan: … | Tilt: …</div>
@@ -47,14 +53,56 @@
 
         <div class="modes admin-only">
           <button class="small" id="manualBtn">Manuel</button>
-          <button class="small" id="autoBtn">Auto (OpenCV)</button>
+          <button class="small" id="autoBtn">Auto (YOLO)</button>
         </div>
       </div>
-      <div class="videoWrap">
-        <img id="cam" src="/video" alt="ESP32 stream" />
-        <canvas id="overlay"></canvas>
-      </div>
       <p class="hint">Astuce : maintiens un bouton appuyé pour bouger en continu.</p>
+    </section>
+
+    <!-- Positions prédéfinies -->
+    <section class="card">
+      <h2>Positions prédéfinies</h2>
+      <div class="row save-position-row">
+        <input id="posName" class="pos-input" type="text" placeholder="Nom de la position" />
+        <button class="small admin-only" id="savePosBtn">Sauvegarder</button>
+      </div>
+      <div id="positionsList" class="positions-list">
+        <p class="hint">Aucune position sauvegardée.</p>
+      </div>
+    </section>
+
+    <!-- Dashboard statistiques -->
+    <section class="card">
+      <h2>Statistiques personnes</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="currentCount">0</div>
+          <div class="stat-label">Personnes actuelles</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="maxCount">0</div>
+          <div class="stat-label">Maximum aujourd'hui</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="totalSession">0</div>
+          <div class="stat-label">Total session</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="alertCount">0</div>
+          <div class="stat-label">Alertes</div>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="peopleChart"></canvas>
+      </div>
+    </section>
+
+    <!-- Alertes récentes -->
+    <section class="card">
+      <h2>Alertes récentes</h2>
+      <div id="alertsList" class="alerts-list">
+        <p class="hint">Aucune alerte pour le moment.</p>
+      </div>
     </section>
   </div>
 

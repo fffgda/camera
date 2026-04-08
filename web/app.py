@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+import time
 from functools import wraps
 from threading import Lock
 
@@ -28,6 +29,7 @@ TOPIC_PAN = os.getenv("TOPIC_PAN", "esp32cam/cmd/pan")
 TOPIC_TILT = os.getenv("TOPIC_TILT", "esp32cam/cmd/tilt")
 TOPIC_MODE = os.getenv("TOPIC_MODE", "esp32cam/cmd/mode")
 FACES_TOPIC = os.getenv("FACES_TOPIC", "esp32cam/status/faces")
+PEOPLE_TOPIC = os.getenv("PEOPLE_TOPIC", "esp32cam/status/people")
 
 OPENCV_STREAM_URL = os.getenv("OPENCV_STREAM_URL", "http://opencv:5001/stream")
 
@@ -35,7 +37,9 @@ STEP = int(os.getenv("STEP", "2"))
 PAN_MIN, PAN_MAX = 0, 180
 TILT_MIN, TILT_MAX = 0, 180
 
-USER_DB_PATH = os.getenv("USER_DB_PATH", os.path.join(os.path.dirname(__file__), "users.db"))
+USER_DB_DIR = os.path.join(os.path.dirname(__file__), "data")
+USER_DB_PATH = os.getenv("USER_DB_PATH", os.path.join(USER_DB_DIR, "users.db"))
+os.makedirs(os.path.dirname(USER_DB_PATH), exist_ok=True)
 DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
 DEFAULT_VIEWER_USERNAME = os.getenv("DEFAULT_VIEWER_USERNAME", "viewer")
@@ -57,7 +61,35 @@ last_faces = {
     "faces": [],
 }
 
+last_people = {
+    "ts": 0,
+    "count": 0,
+    "total_session": 0,
+}
+
 faces_lock = Lock()
+people_lock = Lock()
+
+# =========================
+# SSE MANAGER
+# =========================
+sse_clients = []
+sse_lock = Lock()
+
+
+def sse_broadcast(event_type, data):
+    """Envoie un événement SSE à tous les clients connectés."""
+    message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+    with sse_lock:
+        dead = []
+        for q in sse_clients:
+            try:
+                q.append(message)
+            except Exception:
+                dead.append(q)
+        for q in dead:
+            sse_clients.remove(q)
+
 
 # =========================
 # HELPERS
@@ -101,6 +133,41 @@ def init_user_db():
                     (username, generate_password_hash(password), role),
                 )
 
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS people_counts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL NOT NULL,
+                count INTEGER NOT NULL,
+                total INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL NOT NULL,
+                count INTEGER NOT NULL,
+                threshold INTEGER NOT NULL,
+                message TEXT NOT NULL
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS positions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                pan INTEGER NOT NULL,
+                tilt INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
         conn.commit()
 
 
@@ -138,13 +205,36 @@ def on_faces_message(client, userdata, msg):
         data = json.loads(msg.payload.decode(errors="ignore"))
         with faces_lock:
             last_faces = data
+        sse_broadcast("faces", data)
     except Exception as e:
         print("[WEB] Erreur parsing faces:", e, flush=True)
+
+
+def on_people_message(client, userdata, msg):
+    global last_people
+    try:
+        data = json.loads(msg.payload.decode(errors="ignore"))
+        with people_lock:
+            last_people = data
+
+        sse_broadcast("people", data)
+
+        # Save to SQLite history
+        with get_db_connection() as conn:
+            conn.execute(
+                "INSERT INTO people_counts (timestamp, count, total) VALUES (?, ?, ?)",
+                (data.get("ts", time.time()), data.get("count", 0), data.get("total_session", 0)),
+            )
+            conn.commit()
+    except Exception as e:
+        print("[WEB] Erreur parsing people:", e, flush=True)
 
 
 def on_message(client, userdata, msg):
     if msg.topic == FACES_TOPIC:
         on_faces_message(client, userdata, msg)
+    elif msg.topic == PEOPLE_TOPIC:
+        on_people_message(client, userdata, msg)
 
 
 # =========================
@@ -156,11 +246,11 @@ mqtt_connected = False
 
 try:
     client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
-    client.subscribe(FACES_TOPIC)
+    client.subscribe([(FACES_TOPIC, 0), (PEOPLE_TOPIC, 0)])
     client.loop_start()
     mqtt_connected = True
     print(
-        f"[WEB] MQTT connecté à {MQTT_BROKER}:{MQTT_PORT}, subscribe {FACES_TOPIC}",
+        f"[WEB] MQTT connecte a {MQTT_BROKER}:{MQTT_PORT}, subscribe {FACES_TOPIC}, {PEOPLE_TOPIC}",
         flush=True,
     )
 except Exception as e:
@@ -171,7 +261,11 @@ except Exception as e:
 # FLASK APP
 # =========================
 app = Flask(__name__, static_folder="static")
-app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "change-this-secret")
+_secret_key = os.getenv("FLASK_SECRET_KEY", "")
+if not _secret_key or _secret_key == "change-this-secret":
+    print("[WARNING] FLASK_SECRET_KEY non configuree - utilisez une valeur securisee en production!", flush=True)
+    _secret_key = "change-this-secret"
+app.config["SECRET_KEY"] = _secret_key
 
 init_user_db()
 
@@ -223,11 +317,20 @@ def index():
 
 
 def proxy_stream():
-    with requests.get(OPENCV_STREAM_URL, stream=True, timeout=10) as res:
-        res.raise_for_status()
-        for chunk in res.iter_content(chunk_size=8192):
-            if chunk:
-                yield chunk
+    try:
+        print(f"[VIDEO] Tentative de connexion à {OPENCV_STREAM_URL}", flush=True)
+        with requests.get(OPENCV_STREAM_URL, stream=True, timeout=30) as res:
+            res.raise_for_status()
+            print(f"[VIDEO] Connecté au stream OpenCV, status={res.status_code}", flush=True)
+            for chunk in res.iter_content(chunk_size=8192):
+                if chunk:
+                    yield chunk
+    except requests.exceptions.ConnectionError as e:
+        print(f"[VIDEO] Erreur de connexion au stream: {e}", flush=True)
+    except requests.exceptions.Timeout as e:
+        print(f"[VIDEO] Timeout du stream: {e}", flush=True)
+    except Exception as e:
+        print(f"[VIDEO] Erreur inattendue du stream: {e}", flush=True)
 
 
 @app.get("/video")
@@ -252,6 +355,32 @@ def api_faces():
         return jsonify(last_faces)
 
 
+@app.get("/api/events")
+@login_required
+def sse_stream():
+    def generate():
+        q = []
+        with sse_lock:
+            sse_clients.append(q)
+        try:
+            while True:
+                if q:
+                    msg = q.pop(0)
+                    yield msg
+                else:
+                    yield ": heartbeat\n\n"
+                    time.sleep(0.5)
+        finally:
+            with sse_lock:
+                if q in sse_clients:
+                    sse_clients.remove(q)
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @app.post("/api/mode")
 @admin_required
 def set_mode():
@@ -272,7 +401,12 @@ def set_mode():
 def move():
     data = request.get_json(force=True)
     direction = (data.get("dir") or "").strip().lower()
-    step = int(data.get("step") or STEP)
+
+    try:
+        step = int(data.get("step") or STEP)
+    except (ValueError, TypeError):
+        return jsonify({"error": "step must be an integer"}), 400
+    step = clamp(step, 1, 45)
 
     state["mode"] = "manual"
     if mqtt_connected:
@@ -309,6 +443,138 @@ def center():
         client.publish(TOPIC_TILT, "90")
 
     return jsonify({"ok": True, **state})
+
+
+# =========================
+# POSITIONS ENDPOINTS
+# =========================
+@app.get("/api/positions")
+@login_required
+def api_positions():
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, name, pan, tilt, created_at FROM positions ORDER BY name ASC"
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.post("/api/positions")
+@admin_required
+def api_positions_create():
+    data = request.get_json(force=True)
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+
+    try:
+        pan = int(data.get("pan", state["pan"]))
+        tilt = int(data.get("tilt", state["tilt"]))
+    except (ValueError, TypeError):
+        return jsonify({"error": "pan and tilt must be integers"}), 400
+
+    pan = clamp(pan, PAN_MIN, PAN_MAX)
+    tilt = clamp(tilt, TILT_MIN, TILT_MAX)
+
+    with get_db_connection() as conn:
+        try:
+            conn.execute(
+                "INSERT INTO positions (name, pan, tilt) VALUES (?, ?, ?)",
+                (name, pan, tilt),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            return jsonify({"error": f"position '{name}' already exists"}), 409
+
+    return jsonify({"ok": True, "name": name, "pan": pan, "tilt": tilt})
+
+
+@app.post("/api/positions/recall")
+@admin_required
+def api_positions_recall():
+    data = request.get_json(force=True)
+    pos_id = data.get("id")
+    if not pos_id:
+        return jsonify({"error": "id is required"}), 400
+
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT id, name, pan, tilt FROM positions WHERE id = ?", (pos_id,)
+        ).fetchone()
+
+    if not row:
+        return jsonify({"error": "position not found"}), 404
+
+    state["pan"] = row["pan"]
+    state["tilt"] = row["tilt"]
+    state["mode"] = "manual"
+
+    if mqtt_connected:
+        client.publish(TOPIC_MODE, "manual")
+        client.publish(TOPIC_PAN, str(row["pan"]))
+        client.publish(TOPIC_TILT, str(row["tilt"]))
+
+    return jsonify({"ok": True, "name": row["name"], "pan": row["pan"], "tilt": row["tilt"], "mode": "manual"})
+
+
+@app.delete("/api/positions/<int:pos_id>")
+@admin_required
+def api_positions_delete(pos_id):
+    with get_db_connection() as conn:
+        result = conn.execute("DELETE FROM positions WHERE id = ?", (pos_id,))
+        conn.commit()
+        if result.rowcount == 0:
+            return jsonify({"error": "position not found"}), 404
+    return jsonify({"ok": True})
+
+
+# =========================
+# PEOPLE COUNT ENDPOINTS
+# =========================
+@app.get("/api/people")
+@login_required
+def api_people():
+    with people_lock:
+        return jsonify(last_people)
+
+
+@app.get("/api/people/history")
+@login_required
+def api_people_history():
+    limit = int(request.args.get("limit", "100"))
+    limit = min(max(1, limit), 1000)
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT timestamp, count, total FROM people_counts ORDER BY timestamp DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    history = [{"timestamp": r["timestamp"], "count": r["count"], "total": r["total"]} for r in rows]
+    return jsonify(history)
+
+
+@app.get("/api/alerts")
+@login_required
+def api_alerts():
+    limit = int(request.args.get("limit", "50"))
+    limit = min(max(1, limit), 200)
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, timestamp, count, threshold, message FROM alerts ORDER BY timestamp DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    alerts_list = [
+        {"id": r["id"], "timestamp": r["timestamp"], "count": r["count"], "threshold": r["threshold"], "message": r["message"]}
+        for r in rows
+    ]
+    return jsonify(alerts_list)
+
+
+# =========================
+# HEALTH CHECK
+# =========================
+@app.get("/health")
+@app.get("/v1/health")
+def health_check():
+    return jsonify({"status": "healthy", "service": "web"})
 
 
 if __name__ == "__main__":

@@ -1,8 +1,6 @@
 # boot.py -- Configuration initiale Wi-Fi
 import network, time
-
-SSID = "Livebox-7A60"
-PASSWORD = "Pinkfloyd1970!"
+from wifi_config import SSID, PASSWORD
 
 sta = network.WLAN(network.STA_IF)
 sta.active(True)
