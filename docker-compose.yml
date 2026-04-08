@@ -15,9 +15,9 @@ services:
       timeout: 5s
       retries: 3
 
-  opencv:
-    build: ./opencv
-    container_name: opencv
+  ultralytics:
+    build: ./ultralytics
+    container_name: ultralytics
     depends_on:
       mqtt:
         condition: service_healthy
