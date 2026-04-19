@@ -66,7 +66,7 @@ set_servo_tilt(90)
 def camera_init():
     try:
         camera.deinit()
-    except:
+    except Exception:
         pass
 
     # Mapping pins Freenove/lemariva ESP32-S3
@@ -156,7 +156,7 @@ def handle_client(conn, addr):
     finally:
         try:
             conn.close()
-        except:
+        except Exception:
             pass
 
 def server_loop():

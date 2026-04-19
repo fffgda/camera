@@ -232,17 +232,23 @@ def main():
         ret, frame = cap.read()
         if not ret or frame is None:
             print("[VIDEO] Frame invalide, reconnexion...", flush=True)
+            old_cap = cap
+            cap = None
             try:
-                cap.release()
+                old_cap.release()
             except Exception:
                 pass
             time.sleep(1)
-            cap = None
-            while cap is None:
+            retry_count = 0
+            while cap is None and retry_count < 10:
                 cap = open_stream(MJPEG_URL)
                 if cap is None:
-                    print(f"[VIDEO] Reconnexion echouee. Nouvelle tentative dans 2s...", flush=True)
+                    print(f"[VIDEO] Reconnexion echouee tentative {retry_count+1}/10. Nouvelle tentative dans 2s...", flush=True)
                     time.sleep(2)
+                    retry_count += 1
+            if cap is None:
+                print("[VIDEO] Impossible de reconnecter après 10 tentatives, attente longue...", flush=True)
+                time.sleep(30)
             continue
 
         now = time.time()
@@ -282,6 +288,8 @@ def main():
             people_payload = {
                 "ts": now,
                 "count": count_data["current"],
+                "entries": count_data.get("entries", 0),
+                "exits": count_data.get("exits", 0),
                 "total_session": count_data["total_session"],
             }
             client.publish(STATUS_PEOPLE_TOPIC, json.dumps(people_payload), qos=0, retain=False)

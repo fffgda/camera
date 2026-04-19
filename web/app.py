@@ -72,6 +72,7 @@ last_people = {
 
 faces_lock = Lock()
 people_lock = Lock()
+state_lock = Lock()
 
 # =========================
 # SSE MANAGER
@@ -224,7 +225,7 @@ def on_people_message(client, userdata, msg):
         with get_db_connection() as conn:
             conn.execute(
                 "INSERT INTO people_counts (timestamp, count, total) VALUES (?, ?, ?)",
-                (data.get("ts", time.time()), data.get("count", 0), data.get("total_session", 0)),
+                (data.get("ts", time.time()), data.get("count", 0), data.get("entries", 0)),
             )
             conn.commit()
     except Exception as e:
@@ -382,7 +383,8 @@ def video():
 @app.get("/api/state")
 @login_required
 def get_state():
-    return jsonify(state)
+    with state_lock:
+        return jsonify(state.copy())
 
 
 @app.get("/api/faces")
@@ -433,7 +435,8 @@ def set_mode():
     if mode not in ("auto", "manual"):
         return jsonify({"error": "mode must be auto or manual"}), 400
 
-    state["mode"] = mode
+    with state_lock:
+        state["mode"] = mode
     if mqtt_connected:
         mqtt_client.publish(TOPIC_MODE, mode)
     return jsonify({"ok": True, "mode": mode})
@@ -451,41 +454,44 @@ def move():
         return jsonify({"error": "step must be an integer"}), 400
     step = clamp(step, 1, 45)
 
-    state["mode"] = "manual"
+    with state_lock:
+        state["mode"] = "manual"
+        if direction == "left":
+            state["pan"] = clamp(state["pan"] + step, PAN_MIN, PAN_MAX)
+        elif direction == "right":
+            state["pan"] = clamp(state["pan"] - step, PAN_MIN, PAN_MAX)
+        elif direction == "up":
+            state["tilt"] = clamp(state["tilt"] + step, TILT_MIN, TILT_MAX)
+        elif direction == "down":
+            state["tilt"] = clamp(state["tilt"] - step, TILT_MIN, TILT_MAX)
+        else:
+            return jsonify({"error": "dir must be left/right/up/down"}), 400
+
+        pan_val = state["pan"]
+        tilt_val = state["tilt"]
+
     if mqtt_connected:
         mqtt_client.publish(TOPIC_MODE, "manual")
+        mqtt_client.publish(TOPIC_PAN, str(pan_val))
+        mqtt_client.publish(TOPIC_TILT, str(tilt_val))
 
-    if direction == "left":
-        state["pan"] = clamp(state["pan"] + step, PAN_MIN, PAN_MAX)
-    elif direction == "right":
-        state["pan"] = clamp(state["pan"] - step, PAN_MIN, PAN_MAX)
-    elif direction == "up":
-        state["tilt"] = clamp(state["tilt"] + step, TILT_MIN, TILT_MAX)
-    elif direction == "down":
-        state["tilt"] = clamp(state["tilt"] - step, TILT_MIN, TILT_MAX)
-    else:
-        return jsonify({"error": "dir must be left/right/up/down"}), 400
-
-    if mqtt_connected:
-        mqtt_client.publish(TOPIC_PAN, str(state["pan"]))
-        mqtt_client.publish(TOPIC_TILT, str(state["tilt"]))
-
-    return jsonify({"ok": True, **state})
+    return jsonify({"ok": True, "pan": pan_val, "tilt": tilt_val, "mode": "manual"})
 
 
 @app.post("/api/center")
 @admin_required
 def center():
-    state["mode"] = "manual"
-    state["pan"] = 90
-    state["tilt"] = 90
+    with state_lock:
+        state["mode"] = "manual"
+        state["pan"] = 90
+        state["tilt"] = 90
 
     if mqtt_connected:
         mqtt_client.publish(TOPIC_MODE, "manual")
         mqtt_client.publish(TOPIC_PAN, "90")
         mqtt_client.publish(TOPIC_TILT, "90")
 
-    return jsonify({"ok": True, **state})
+    return jsonify({"ok": True, "pan": 90, "tilt": 90, "mode": "manual"})
 
 
 # =========================
@@ -509,9 +515,13 @@ def api_positions_create():
     if not name:
         return jsonify({"error": "name is required"}), 400
 
+    with state_lock:
+        default_pan = state["pan"]
+        default_tilt = state["tilt"]
+
     try:
-        pan = int(data.get("pan", state["pan"]))
-        tilt = int(data.get("tilt", state["tilt"]))
+        pan = int(data.get("pan", default_pan))
+        tilt = int(data.get("tilt", default_tilt))
     except (ValueError, TypeError):
         return jsonify({"error": "pan and tilt must be integers"}), 400
 
@@ -547,9 +557,10 @@ def api_positions_recall():
     if not row:
         return jsonify({"error": "position not found"}), 404
 
-    state["pan"] = row["pan"]
-    state["tilt"] = row["tilt"]
-    state["mode"] = "manual"
+    with state_lock:
+        state["pan"] = row["pan"]
+        state["tilt"] = row["tilt"]
+        state["mode"] = "manual"
 
     if mqtt_connected:
         mqtt_client.publish(TOPIC_MODE, "manual")

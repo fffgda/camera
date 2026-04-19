@@ -141,7 +141,8 @@ function initSSE() {
       const data = JSON.parse(e.data);
       const count = data.count || 0;
       currentCountEl.textContent = count;
-      totalSessionEl.textContent = data.total_session || 0;
+      // total_session now represents entries (new detections)
+      totalSessionEl.textContent = data.entries || data.total_session || 0;
 
       if (count > maxCountToday) {
         maxCountToday = count;
