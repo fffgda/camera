@@ -1,196 +1,89 @@
 # AGENTS.md
 
-## Project Overview
-
-ESP32-CAM person counting system with real-time video streaming, YOLO-based person detection, pan/tilt servo control, and a web dashboard.
-
-### Architecture
+## Architecture
 
 ```
-ESP32-S3 (MicroPython)  →  MJPEG stream  →  OpenCV Container (YOLO detection)
-                                        ↕  MQTT (Mosquitto)
-                           Web Container (Flask + SQLite)  →  Browser Dashboard
+ESP32-S3 → MJPEG stream → OpenCV (YOLO) ──MQTT───→ Web (Flask + SQLite) → Browser
+               ↑                                      │
+               └─────────────── MQTT ─────────────────┘  (pan/tilt commands)
 ```
 
 **Components:**
-- `main.py`, `boot.py` — ESP32 firmware (MicroPython): camera streaming + servo control
-- `opencv/app.py` — YOLO person detection, face tracking, MQTT publisher
-- `opencv/counting.py` — Person counter with session statistics
-- `opencv/alerts.py` — Alert manager (webhook + email SMTP)
-- `web/app.py` — Flask API with SQLite auth, people history, alerts
-- `web/static/` — Frontend HTML/CSS/JS with Chart.js dashboard
+- `main.py`, `boot.py` — ESP32 firmware (MicroPython)
+- `opencv/app.py` — YOLO detection, MQTT publisher, MJPEG restream
+- `opencv/counting.py` — Person counter
+- `opencv/alerts.py` — Alert manager (webhook + SMTP)
+- `web/app.py` — Flask API, SQLite auth, SSE dashboard
+- `web/static/` — Frontend (Chart.js)
 
 ---
 
-## Build / Run Commands
+## Build / Run
 
 ```bash
-# Start all services
-docker compose up --build
-
-# Start a single service
-docker compose up --build opencv
-docker compose up --build web
-docker compose up mqtt
-
-# Stop all
-docker compose down
-
-# View logs
-docker compose logs -f opencv
-docker compose logs -f web
+docker compose up --build          # all services
+docker compose up --build opencv    # single service
+docker compose down                 # stop
+docker compose logs -f opencv       # view logs
 ```
 
-**ESP32 firmware** (MicroPython, deployed via Thonny or ampy):
+**MQTT must start first** — `opencv` and `web` depend on `mqtt: service_healthy`.
+
+**ESP32 firmware** (MicroPython):
 ```bash
-# Upload to ESP32
 ampy --port /dev/ttyUSB0 put boot.py
 ampy --port /dev/ttyUSB0 put main.py
 ```
 
 ---
 
-## Testing
+## Key Config Pattern
 
-No formal test framework is configured. Manual testing approach:
+Only **`ESP32_IP`** in `.env` needs changing when the camera IP changes. Everything else (MJPEG_URL, topics) is derived automatically in docker-compose.yml.
 
-```bash
-# Test ESP32 stream directly
-curl http://<ESP32_IP>:81/stream --output test.jpg
-
-# Test OpenCV stream
-curl http://localhost:5001/stream --output test.jpg
-
-# Test web API
-curl http://localhost:8080/api/state
-curl http://localhost:8080/api/people
-curl http://localhost:8080/api/alerts
-
-# Test MQTT messages
-mosquitto_sub -t "esp32cam/#" -v
-```
-
----
-
-## Code Style Guidelines
-
-### Python (Flask + OpenCV services)
-
-**Imports order:**
-1. Standard library (`os`, `json`, `time`, `threading`)
-2. Third-party (`cv2`, `numpy`, `flask`, `paho.mqtt.client`)
-3. Local modules (`counting`, `alerts`)
-
-```python
-import json
-import os
-import time
-
-import cv2
-import numpy as np
-from flask import Flask, jsonify
-
-from counting import PersonCounter
-```
-
-**Naming conventions:**
-- Variables/functions: `snake_case`
-- Constants: `UPPER_SNAKE_CASE`
-- Classes: `PascalCase`
-- Environment variables: `UPPER_SNAKE_CASE` via `os.getenv("VAR", "default")`
-
-**Type hints:** Optional but encouraged for public functions:
-```python
-def clamp(v: int, lo: int, hi: int) -> int:
-    return max(lo, min(hi, v))
-```
-
-**Error handling:**
-```python
-try:
-    result = risky_operation()
-except Exception as e:
-    print(f"[CONTEXT] Erreur: {e}", flush=True)
-```
-
-**MQTT topics:** `esp32cam/{cmd|status}/{topic}` pattern
-
-### MicroPython (ESP32 firmware)
-
-- Compact imports: `import network, time, socket`
-- No type hints (MicroPython constraint)
-- Bare `except:` acceptable for hardware cleanup (`camera.deinit()`)
-- GPIO pins: avoid 13/15 (camera XCLK/PCLK), use 1/2 for servos
-- WiFi credentials in `wifi_config.py` (gitignored, see `wifi_config_example.py`)
-
-### JavaScript (Frontend)
-
-- `camelCase` for variables/functions
-- `const` preferred over `let`
-- Async/await for API calls
-- Fetch API with error handling
-
-### CSS
-
-- CSS custom properties in `:root`
-- BEM-like naming for components
-- `rgba()` for transparency
-
----
-
-## Docker Notes
-
-- Services: `mqtt` (Mosquitto), `opencv` (YOLO detection), `web` (Flask dashboard)
-- Images use `python:3.11-slim` base
-- OpenCV container needs `libgl1`, `libglib2.0-0`, `libgomp1` for YOLO inference
-- Persistent data in `mosquitto/data/` and `mosquitto/log/` (volumes)
-- Health endpoint: `GET /health` on web service (port 8080)
+The ESP32 firmware (`main.py`) also needs the MQTT broker IP — it must be the **Docker host IP** (e.g. `172.16.8.1`), not the Docker bridge IP (`172.17.x.x`). See README "Pont MQTT Docker ↔ Réseau local" section.
 
 ---
 
 ## Environment Variables
 
-All config via `.env` file (gitignored). WiFi creds via `wifi_config.py` (gitignored, see `wifi_config_example.py`):
-
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ESP32_IP` | `192.168.1.83` | ESP32 camera IP address |
+| `ESP32_IP` | `172.16.8.69` | ESP32 camera IP (change this!) |
 | `MQTT_BROKER` | `mqtt` | MQTT broker hostname |
-| `YOLO_CONF` | `0.45` | YOLO confidence threshold |
-| `ALERT_THRESHOLD` | `5` | Person count alert trigger |
+| `YOLO_CONF` | `0.6` | YOLO confidence threshold |
+| `DETECT_EVERY_N` | `3` | Process 1 frame every N |
+| `DETECT_RESIZE` | `0.4` | Frame resize factor before detection |
+| `JPEG_QUALITY` | `50` | MJPEG quality (5-95) |
+| `MOTION_ENABLED` | `1` | Enable motion detection |
+| `ALERT_THRESHOLD` | `5` | Trigger alert at this count |
 | `ALERT_COOLDOWN` | `300` | Seconds between alerts |
+| `FLASK_SECRET_KEY` | `change-this-secret` | Flask secret (set this!) |
 
 ---
 
-## Key Technical Notes
+## Technical Notes
 
-- **YOLO model:** `yolov8n.pt` (nano, 3.2MB) — optimized for CPU inference
-- **Detection:** Only class 0 (person) from COCO dataset
-- **Servos:** GPIO pins 1 and 2 on ESP32-S3 (avoid 13/15 used by camera)
-- **MQTT JSON payloads:** `{"ts": float, "count": int, "faces": [...]}`
+- **YOLO model:** `yolov8n.pt` — detects class 0 (person) from COCO
+- **MQTT topics:** `esp32cam/{cmd|status}/{pan|tilt|mode|faces|people|alerts}`
 - **SQLite tables:** `users`, `people_counts`, `alerts`
+- **Servo GPIO:** pins 1 and 2 (avoid 13/15 used by camera)
+- **MJPEG restream:** OpenCV publishes processed stream on port 5001
 
 ---
 
-## Common Tasks
+## Testing
 
-**Change detection confidence:**
-```env
-YOLO_CONF=0.6  # Higher = fewer false positives
-```
-
-**Configure Telegram alerts:**
-```env
-ALERT_WEBHOOK_URL=https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<CHAT_ID>
-```
-
-**Debug OpenCV container:**
 ```bash
-docker compose exec opencv python -c "from ultralytics import YOLO; print(YOLO('yolov8n.pt'))"
+# Stream endpoints
+curl http://localhost:5001/stream      # OpenCV processed stream
+curl http://localhost:8080/health      # web health
+
+# API
+curl http://localhost:8080/api/state
+curl http://localhost:8080/api/people
+curl http://localhost:8080/api/alerts
+
+# MQTT
+mosquitto_sub -t "esp32cam/#" -v
 ```
-
----
-
-## Cursor / Copilot Rules
-
-No `.cursor/rules/`, `.cursorrules`, or `.github/copilot-instructions.md` files present.
