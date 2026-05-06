@@ -61,3 +61,7 @@ Desktop.ini
 # Docker
 # =========================
 docker-compose.override.yml
+
+
+# Dans ton dossier projet
+nginx/ssl/

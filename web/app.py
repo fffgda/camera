@@ -354,10 +354,11 @@ def index():
 def proxy_stream():
     try:
         print(f"[VIDEO] Connexion à {OPENCV_STREAM_URL}", flush=True)
-        with requests.get(OPENCV_STREAM_URL, stream=True, timeout=30) as res:
+        with requests.get(OPENCV_STREAM_URL, stream=True, timeout=(10, None)) as res:
             res.raise_for_status()
             print(f"[VIDEO] Stream OK, status={res.status_code}", flush=True)
-            for chunk in res.iter_content(chunk_size=8192):
+            # chunk_size=None => yield dès que des données arrivent (pas de buffer interne)
+            for chunk in res.iter_content(chunk_size=None):
                 if chunk:
                     yield chunk
     except requests.exceptions.ConnectionError as e:
@@ -371,10 +372,15 @@ def proxy_stream():
 @app.get("/video")
 @login_required
 def video():
-    return Response(
+    response = Response(
         stream_with_context(proxy_stream()),
         mimetype="multipart/x-mixed-replace; boundary=frame",
     )
+    # Empêche tout intermédiaire (nginx, navigateur) de bufferiser le flux
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["X-Accel-Buffering"] = "no"
+    return response
 
 
 # =========================

@@ -18,7 +18,7 @@ from counting import PersonCounter
 STATUS_FACES_TOPIC = os.getenv("STATUS_FACES_TOPIC", "esp32cam/status/faces")
 STATUS_PEOPLE_TOPIC = os.getenv("STATUS_PEOPLE_TOPIC", "esp32cam/status/people")
 
-ESP32_IP = os.getenv("ESP32_IP", "172.16.8.69")
+ESP32_IP = os.getenv("ESP32_IP", "172.16.8.81")
 MJPEG_URL = os.getenv("MJPEG_URL", f"http://{ESP32_IP}:81/stream")
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt")
