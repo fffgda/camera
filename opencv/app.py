@@ -63,7 +63,9 @@ try:
     torch.set_num_interop_threads(1)
     if hasattr(torch.backends, "mkldnn"):
         torch.backends.mkldnn.enabled = False
-    print("[YOLO] PyTorch threads=1, mkldnn desactive", flush=True)
+    if hasattr(torch.backends, "nnpack"):
+        torch.backends.nnpack.enabled = False
+    print("[YOLO] PyTorch threads=1, mkldnn+nnpack desactives", flush=True)
 except Exception as _e:
     print(f"[YOLO] Reglage PyTorch ignore: {_e}", flush=True)
 
