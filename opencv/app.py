@@ -54,6 +54,19 @@ MOTION_COOLDOWN = float(os.getenv("MOTION_COOLDOWN", "2.0"))
 # =========================
 # YOLO MODEL
 # =========================
+# Stabilise PyTorch dans le conteneur : limite a 1 thread et desactive
+# le backend oneDNN/MKL-DNN qui crashait avec "could not create a primitive".
+try:
+    import torch
+
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
+    if hasattr(torch.backends, "mkldnn"):
+        torch.backends.mkldnn.enabled = False
+    print("[YOLO] PyTorch threads=1, mkldnn desactive", flush=True)
+except Exception as _e:
+    print(f"[YOLO] Reglage PyTorch ignore: {_e}", flush=True)
+
 print("[YOLO] Chargement du modele yolov8n.pt...", flush=True)
 model = YOLO("yolov8n.pt")
 print("[YOLO] Modele charge OK (classes COCO, filtre: person=0)", flush=True)

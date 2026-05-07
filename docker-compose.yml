@@ -22,6 +22,11 @@ services:
       mqtt:
         condition: service_healthy
     environment:
+      # --- Limite les pools de threads pour eviter les crashs oneDNN/MKL-DNN
+      # de PyTorch dans le conteneur ("could not create a primitive")
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
       ESP32_IP: "${ESP32_IP:-172.16.8.69}"
       # MJPEG_URL construit depuis ESP32_IP — modifier uniquement ESP32_IP dans le .env suffit
       MJPEG_URL: "${MJPEG_URL:-http://${ESP32_IP:-172.16.8.69}:81/stream}"
