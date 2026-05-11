@@ -22,6 +22,7 @@ Système de comptage de personnes en temps réel avec détection YOLO, suivi pan
 | `mqtt` | Broker Mosquitto | 1883 |
 | `opencv` | Détection YOLO + tracking | 5001 |
 | `web` | Dashboard Flask | 8080 |
+| `nginx` | Reverse-proxy TLS (certificats auto-signés) | 80 → 443 |
 
 ## Prérequis
 
@@ -69,9 +70,53 @@ Le broker MQTT tourne dans Docker. L'ESP32 est sur votre réseau WiFi local. Pou
    ampy --port /dev/ttyUSB0 put main.py
    ```
 
+## HTTPS (TLS) avec Nginx
+
+Nginx agit comme reverse-proxy TLS. Le trafic HTTP (port 80) est automatiquement redirigé vers HTTPS (port 443).
+
+### 1. Générer les certificats auto-signés
+
+```bash
+# Créer le dossier et générer une clé + certificat valide 10 ans
+mkdir -p nginx/ssl
+openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+  -keyout nginx/ssl/key.pem \
+  -out nginx/ssl/cert.pem \
+  -subj "/C=FR/ST=France/L=Paris/O=Home/CN=localhost"
+```
+
+> **Production :** remplacez par des certificats signés par une CA (Let's Encrypt, ZeroSSL).
+
+### 2. Lancer les services
+
+```bash
+docker compose up --build
+```
+
+### 3. Accéder au dashboard
+
+Ouvrir **https://localhost** dans le navigateur.
+
+Le navigateur affichera un avertissement de sécurité (certificat auto-signé). Pour les tests : cliquez "Avancé" → "Continuer vers localhost".
+
+### 4. (Optionnel) Certificats Let's Encrypt
+
+Si le serveur a un nom de domaine public :
+
+```bash
+# Installer certbot, puis :
+certbot certonly --standalone -d votre-domaine.fr
+# Copier les certificats :
+cp /etc/letsencrypt/live/votre-domaine.fr/fullchain.pem nginx/ssl/cert.pem
+cp /etc/letsencrypt/live/votre-domaine.fr/privkey.pem nginx/ssl/key.pem
+docker compose up --build nginx
+```
+
+---
+
 ## Utilisation
 
-- **Dashboard:** http://localhost:8080
+- **Dashboard:** https://localhost (port 443, redirection auto depuis le port 80)
 - **Stream brut ESP32:** http://<ESP32_IP>:81/stream
 - **Stream traité OpenCV:** http://localhost:5001/stream
 
@@ -130,6 +175,19 @@ docker compose logs mqtt
 
 # Tester la connexion
 docker compose exec mqtt mosquitto_pub -t test -m "hello"
+```
+
+### Nginx ne démarre pas (certificats manquants)
+
+```bash
+# Erreur typique : nginx/ssl/cert.pem introuvable
+# Solution :
+mkdir -p nginx/ssl
+openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+  -keyout nginx/ssl/key.pem \
+  -out nginx/ssl/cert.pem \
+  -subj "/C=FR/ST=France/L=Paris/O=Home/CN=localhost"
+docker compose up --build nginx
 ```
 
 ### Les commandes pan/tilt ne fonctionnent pas

@@ -15,19 +15,28 @@ ESP32-S3 → MJPEG stream → OpenCV (YOLO) ──MQTT───→ Web (Flask + 
 - `opencv/alerts.py` — Alert manager (webhook + SMTP)
 - `web/app.py` — Flask API, SQLite auth, SSE dashboard
 - `web/static/` — Frontend (Chart.js)
+- `nginx/nginx.conf` — Reverse-proxy TLS, HTTP→HTTPS redirect
 
 ---
 
 ## Build / Run
 
 ```bash
-docker compose up --build          # all services
-docker compose up --build opencv    # single service
+docker compose up --build           # all services
+docker compose up --build nginx     # single service
 docker compose down                 # stop
 docker compose logs -f opencv       # view logs
 ```
 
 **MQTT must start first** — `opencv` and `web` depend on `mqtt: service_healthy`.
+
+**SSL certs are required before first build:**
+```bash
+mkdir -p nginx/ssl
+openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+  -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem \
+  -subj "/CN=localhost"
+```
 
 **ESP32 firmware** (MicroPython):
 ```bash
@@ -39,51 +48,47 @@ ampy --port /dev/ttyUSB0 put main.py
 
 ## Key Config Pattern
 
-Only **`ESP32_IP`** in `.env` needs changing when the camera IP changes. Everything else (MJPEG_URL, topics) is derived automatically in docker-compose.yml.
+Only **`ESP32_IP`** in `.env` needs changing when the camera IP changes. `MJPEG_URL` is derived automatically in docker-compose.yml — do NOT set both or the explicit var wins.
 
-The ESP32 firmware (`main.py`) also needs the MQTT broker IP — it must be the **Docker host IP** (e.g. `172.16.8.1`), not the Docker bridge IP (`172.17.x.x`). See README "Pont MQTT Docker ↔ Réseau local" section.
-
----
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ESP32_IP` | `172.16.8.69` | ESP32 camera IP (change this!) |
-| `MQTT_BROKER` | `mqtt` | MQTT broker hostname |
-| `YOLO_CONF` | `0.6` | YOLO confidence threshold |
-| `DETECT_EVERY_N` | `3` | Process 1 frame every N |
-| `DETECT_RESIZE` | `0.4` | Frame resize factor before detection |
-| `JPEG_QUALITY` | `50` | MJPEG quality (5-95) |
-| `MOTION_ENABLED` | `1` | Enable motion detection |
-| `ALERT_THRESHOLD` | `5` | Trigger alert at this count |
-| `ALERT_COOLDOWN` | `300` | Seconds between alerts |
-| `FLASK_SECRET_KEY` | `change-this-secret` | Flask secret (set this!) |
+The ESP32 firmware (`main.py`) also needs the MQTT broker IP — it must be the **Docker host IP** (e.g. `172.16.8.1`), not the Docker bridge IP (`172.17.x.x`).
 
 ---
 
-## Technical Notes
+## Known Quirks
 
-- **YOLO model:** `yolov8n.pt` — detects class 0 (person) from COCO
-- **MQTT topics:** `esp32cam/{cmd|status}/{pan|tilt|mode|faces|people|alerts}`
-- **SQLite tables:** `users`, `people_counts`, `alerts`
-- **Servo GPIO:** pins 1 and 2 (avoid 13/15 used by camera)
-- **MJPEG restream:** OpenCV publishes processed stream on port 5001
+- **`nginx/ssl/` dir does not exist** in git — must be created manually (see above). Docker build fails without it.
+- **Motion SSE events not wired** — OpenCV publishes `esp32cam/status/motion` but `web/app.py` never subscribes. The frontend listens for a `motion` SSE event that never arrives.
+- **No direct `/stream` route in nginx** — video goes through Flask `/video` proxy. The OpenCV stream on port 5001 is only accessible inside Docker or via direct port mapping.
+- **Main ESP32 entrypoint** is `main.py`, `boot.py` handles WiFi only (imports `wifi_config.py` which is gitignored).
+- **PyTorch oneDNN thread crash** — `opencv/app.py` forces `torch.set_num_threads(1)` and disables mkldnn/nnpack to avoid SIGSEGV in container.
+
+---
+
+## Endpoints
+
+| URL | Service | Notes |
+|-----|---------|-------|
+| `https://localhost/` | nginx → web | Dashboard (Flask) |
+| `https://localhost/video` | nginx → web → opencv | MJPEG stream via Flask proxy |
+| `https://localhost/api/events` | nginx → web | SSE (faces/people/alerts) |
+| `http://localhost:5001/stream` | opencv | Direct stream (Docker host) |
 
 ---
 
 ## Testing
 
 ```bash
-# Stream endpoints
-curl http://localhost:5001/stream      # OpenCV processed stream
-curl http://localhost:8080/health      # web health
+# Health
+curl -k https://localhost/health
+curl http://localhost:8080/health
 
-# API
-curl http://localhost:8080/api/state
+# API (via nginx or direct)
+curl -k https://localhost/api/state
 curl http://localhost:8080/api/people
-curl http://localhost:8080/api/alerts
 
 # MQTT
 mosquitto_sub -t "esp32cam/#" -v
+
+# MJPEG stream
+curl -k https://localhost/video -o /dev/null
 ```
