@@ -217,13 +217,13 @@ MIT
 
 # Credits
      
-**ESP32 Firmware & Servo Control:** [@mou1234568](https://github.com/mou1234568)
-**OpenCV Face Detection & Tracking:** [@mou1234568](https://github.com/mou1234568)
-**YOLO / Ultralytics Integration:** [@mou1234568](https://github.com/mou1234568), [@Ravenbaudry](https://github.com/Ravenbaudry)
-**Docker Architecture (MQTT, PostgreSQL):** [@Ravenbaudry](https://github.com/Ravenbaudry)
-**Web UI & Video Stream:** [@Ravenbaudry](https://github.com/Ravenbaudry)
-**Système de login par rôles:** [@Ravenbaudry](https://github.com/Ravenbaudry)
-**SSE (Server-Sent Events):** [@mou1234568](https://github.com/mou1234568)
-**Reverse Proxy & SSL:** [@mou1234568](https://github.com/mou1234568), [@Ravenbaudry](https://github.com/Ravenbaudry)
-**Optimisations FPS & Stream:** [@Ravenbaudry](https://github.com/Ravenbaudry)
-**Données d'entraînement & MCD:** [@mou1234568](https://github.com/mou1234568)
+-  **ESP32 Firmware & Servo Control:** [@mou1234568](https://github.com/mou1234568)
+-  **OpenCV Face Detection & Tracking:** [@mou1234568](https://github.com/mou1234568)
+-  **YOLO / Ultralytics Integration:** [@mou1234568](https://github.com/mou1234568), [@Ravenbaudry](https://github.com/Ravenbaudry)
+-  **Docker Architecture (MQTT, PostgreSQL):** [@Ravenbaudry](https://github.com/Ravenbaudry)
+-  **Web UI & Video Stream:** [@Ravenbaudry](https://github.com/Ravenbaudry)
+-  **Système de login par rôles:** [@Ravenbaudry](https://github.com/Ravenbaudry)
+-  **SSE (Server-Sent Events):** [@mou1234568](https://github.com/mou1234568)
+-  **Reverse Proxy & SSL:** [@mou1234568](https://github.com/mou1234568), [@Ravenbaudry](https://github.com/Ravenbaudry)
+-  **Optimisations FPS & Stream:** [@Ravenbaudry](https://github.com/Ravenbaudry)
+-  **Données d'entraînement & MCD:** [@mou1234568](https://github.com/mou1234568)
