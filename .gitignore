@@ -1,0 +1,66 @@
+# =========================
+# Secrets & credentials
+# =========================
+.env
+wifi_config.py
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+env/
+
+# =========================
+# YOLO models (large binaries)
+# =========================
+*.pt
+
+# =========================
+# SQLite databases
+# =========================
+*.db
+
+# =========================
+# Mosquitto runtime data
+# =========================
+mosquitto/data/
+mosquitto/log/
+
+# =========================
+# Training data (large)
+# =========================
+training_reconaissance/
+
+# =========================
+# Build artifacts
+# =========================
+build.odt
+
+# =========================
+# IDE
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# =========================
+# Docker
+# =========================
+docker-compose.override.yml
+
+
+# Dans ton dossier projet

@@ -9,38 +9,113 @@ services:
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-W", "3"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   opencv:
     build: ./opencv
     container_name: opencv
     depends_on:
-      - mqtt
+      mqtt:
+        condition: service_healthy
     environment:
-      ESP32_IP: "172.20.10.5"
-      MJPEG_URL: "http://172.20.10.5:81/stream"
-      MQTT_BROKER: "mqtt"
-      MQTT_PORT: "1883"
-      TOL: "20"
-      STEP: "2"
-      TOPIC_PAN: "esp32cam/cmd/pan"
-      TOPIC_TILT: "esp32cam/cmd/tilt"
-      TOPIC_MODE: "esp32cam/cmd/mode"
+      # --- Limite les pools de threads pour eviter les crashs oneDNN/MKL-DNN
+      # de PyTorch dans le conteneur ("could not create a primitive")
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      ESP32_IP: "${ESP32_IP:-172.16.8.69}"
+      # MJPEG_URL construit depuis ESP32_IP — modifier uniquement ESP32_IP dans le .env suffit
+      MJPEG_URL: "${MJPEG_URL:-http://${ESP32_IP:-172.16.8.69}:81/stream}"
+      MQTT_BROKER: "${MQTT_BROKER:-mqtt}"
+      MQTT_PORT: "${MQTT_PORT:-1883}"
+      TOL: "${TOL:-20}"
+      STEP: "${STEP:-2}"
+      TOPIC_PAN: "${TOPIC_PAN:-esp32cam/cmd/pan}"
+      TOPIC_TILT: "${TOPIC_TILT:-esp32cam/cmd/tilt}"
+      TOPIC_MODE: "${TOPIC_MODE:-esp32cam/cmd/mode}"
+      STATUS_FACES_TOPIC: "${STATUS_FACES_TOPIC:-esp32cam/status/faces}"
+      STATUS_PEOPLE_TOPIC: "${STATUS_PEOPLE_TOPIC:-esp32cam/status/people}"
+      DETECT_EVERY_N: "${DETECT_EVERY_N:-2}"
+      DETECT_RESIZE: "${DETECT_RESIZE:-0.5}"
+      JPEG_QUALITY: "${JPEG_QUALITY:-70}"
+      DRAW_OVERLAY: "${DRAW_OVERLAY:-1}"
+      YOLO_CONF: "${YOLO_CONF:-0.45}"
+      STREAM_PORT: "${STREAM_PORT:-5001}"
+      ALERT_THRESHOLD: "${ALERT_THRESHOLD:-5}"
+      ALERT_COOLDOWN: "${ALERT_COOLDOWN:-300}"
+      ALERT_TOPIC: "${ALERT_TOPIC:-esp32cam/status/alerts}"
+      ALERT_WEBHOOK_URL: "${ALERT_WEBHOOK_URL:-}"
+      ALERT_SMTP_HOST: "${ALERT_SMTP_HOST:-}"
+      ALERT_SMTP_PORT: "${ALERT_SMTP_PORT:-587}"
+      ALERT_SMTP_USER: "${ALERT_SMTP_USER:-}"
+      ALERT_SMTP_PASS: "${ALERT_SMTP_PASS:-}"
+      ALERT_EMAIL_TO: "${ALERT_EMAIL_TO:-}"
+      MOTION_ENABLED: "${MOTION_ENABLED:-1}"
+      MOTION_THRESHOLD: "${MOTION_THRESHOLD:-25}"
+      MOTION_MIN_PIXELS: "${MOTION_MIN_PIXELS:-500}"
+      MOTION_TOPIC: "${MOTION_TOPIC:-esp32cam/status/motion}"
+      MOTION_COOLDOWN: "${MOTION_COOLDOWN:-2.0}"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/stream')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   web:
     build: ./web
     container_name: web
     depends_on:
-      - mqtt
+      mqtt:
+        condition: service_healthy
+      opencv:
+        condition: service_started
     environment:
-      MQTT_BROKER: "mqtt"
-      MQTT_PORT: "1883"
-      TOPIC_PAN: "esp32cam/cmd/pan"
-      TOPIC_TILT: "esp32cam/cmd/tilt"
-      TOPIC_MODE: "esp32cam/cmd/mode"
-      STEP: "2"
-      PAN_START: "90"
-      TILT_START: "90"
+      MQTT_BROKER: "${MQTT_BROKER:-mqtt}"
+      MQTT_PORT: "${MQTT_PORT:-1883}"
+      TOPIC_PAN: "${TOPIC_PAN:-esp32cam/cmd/pan}"
+      TOPIC_TILT: "${TOPIC_TILT:-esp32cam/cmd/tilt}"
+      TOPIC_MODE: "${TOPIC_MODE:-esp32cam/cmd/mode}"
+      STEP: "${STEP:-2}"
+      PAN_START: "${PAN_START:-90}"
+      TILT_START: "${TILT_START:-90}"
+      FACES_TOPIC: "${FACES_TOPIC:-esp32cam/status/faces}"
+      PEOPLE_TOPIC: "${PEOPLE_TOPIC:-esp32cam/status/people}"
+      ALERT_TOPIC: "${ALERT_TOPIC:-esp32cam/status/alerts}"
+      OPENCV_STREAM_URL: "${OPENCV_STREAM_URL:-http://opencv:5001/stream}"
+      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-change-this-secret}"
+      USER_DB_PATH: "${USER_DB_PATH:-/app/data/users.db}"
+      DEFAULT_ADMIN_USERNAME: "${DEFAULT_ADMIN_USERNAME:-admin}"
+      DEFAULT_ADMIN_PASSWORD: "${DEFAULT_ADMIN_PASSWORD:-admin123}"
+      DEFAULT_VIEWER_USERNAME: "${DEFAULT_VIEWER_USERNAME:-viewer}"
+      DEFAULT_VIEWER_PASSWORD: "${DEFAULT_VIEWER_PASSWORD:-viewer123}"
     ports:
       - "8080:8080"
+    volumes:
+      - web_data:/app/data
     restart: unless-stopped
-
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+  nginx:
+      build: ./nginx
+      container_name: nginx
+      depends_on:
+        web:
+          condition: service_started
+        opencv:
+          condition: service_started
+      ports:
+        - "80:80"
+        - "443:443"
+      restart: unless-stopped
+volumes:
+  web_data:
+  mosquitto_data:
+  mosquitto_log:

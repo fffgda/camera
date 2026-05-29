@@ -1,8 +1,6 @@
 # boot.py -- Configuration initiale Wi-Fi
 import network, time
-
-SSID = "Van de surveillance 3"
-PASSWORD = "Az3rty1234568!"
+from wifi_config import SSID, PASSWORD
 
 sta = network.WLAN(network.STA_IF)
 sta.active(True)
@@ -24,3 +22,4 @@ if not sta.isconnected():
 else:
     print("WiFi déjà connecté")
     print("Config réseau:", sta.ifconfig())
+
